@@ -88,12 +88,12 @@ class BioloidController:
 		self.serialPort.write(self.buffer)
 		self.buffer = ""
 
-	def readTwoByteRegister(self, id, controlTableIndex):
-		checksum = 0xFF - ((id + 6 + controlTableIndex + 2) % 256)
+	def readTwoByteRegister(self, deviceId, controlTableIndex):
+		checksum = 0xFF - ((deviceId + 6 + controlTableIndex + 2) % 256)
 		self.buffer = ""
 		self.buffer += chr(0xFF)
 		self.buffer += chr(0xFF)
-		self.buffer += chr(id)
+		self.buffer += chr(deviceId)
 		self.buffer += chr(4) # length
 		self.buffer += chr(AX_READ_DATA)
 		self.buffer += chr(controlTableIndex)
@@ -107,12 +107,12 @@ class BioloidController:
 		else:
 			return -1
 
-	def readOneByteRegister(self, id, controlTableIndex):
-		checksum = 0xFF - ((id + 6 + controlTableIndex + 1) % 256)
+	def readOneByteRegister(self, deviceId, controlTableIndex):
+		checksum = 0xFF - ((deviceId + 6 + controlTableIndex + 1) % 256)
 		self.buffer = ""
 		self.buffer += chr(0xFF)
 		self.buffer += chr(0xFF)
-		self.buffer += chr(id)
+		self.buffer += chr(deviceId)
 		self.buffer += chr(4) # length
 		self.buffer += chr(AX_READ_DATA)
 		self.buffer += chr(controlTableIndex)

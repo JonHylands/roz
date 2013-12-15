@@ -20,9 +20,9 @@
 """
 
 from math import cos,sin,atan2,sqrt,acos
-import time
 import random
-from BioloidController import *
+from time import time
+from BioloidController import BioloidController, millis
 from FSM import State, FiniteStateMachine
 
 # Some preliminaries
@@ -235,9 +235,7 @@ class Roz:
 
 	def doIK(self):
 		fail = 0
-		req = [0,0,0,0]  # [x,y,z,r]
 		gait = [0,0,0,0]	# [x,y,z,r]
-		sol = [0,0,0]      # [coxa,femur,tibia]
 
 		# right front leg
 		if self.gaitGen != None:
