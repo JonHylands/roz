@@ -2,6 +2,7 @@
 
 import time
 import serial
+import platform
 
 def millis():
 	return int(round(time.time() * 1000))
@@ -24,8 +25,10 @@ class BioloidController:
 		self.playing = False
 		self.servoCount = 12
 		self.lastFrame = millis()
-		self.serialPort = serial.Serial('/dev/ttyUSB0', 1000000, timeout=1)
-		# self.serialPort = serial.Serial('COM4', 1000000, timeout=1)
+		if platform.system() == "Linux":
+			self.serialPort = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000, timeout=1)
+		else:
+			self.serialPort = serial.Serial(port='COM4', baudrate=1000000, timeout=1)
 		self.standingPose = [450, 570, 600, 420, 550, 460, 570, 450, 420, 600, 460, 550]
 
 	# Load a pose into nextPose
