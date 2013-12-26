@@ -19,18 +19,18 @@ from PIL import Image, ImageTk
 from RobotData import RobotData
 
 
-WINDOW_WIDTH = 500
-WINDOW_HEIGHT = 1000
+WINDOW_WIDTH = 350
+WINDOW_HEIGHT = 700
 LINE_WIDTH = 3
 THIN_WIDTH = 1
 
-FRAME_DELAY = 100
+FRAME_DELAY = 92 # 8% overhead to track more or less realtime at 10Hz
 
 LIGHT_BACK_COLOR = "WhiteSmoke"
 BACK_COLOR = "LightGray"
 DETECTED_COLOR = "FireBrick"
 
-COMPASS_FONT_HEIGHT = 15
+COMPASS_FONT_HEIGHT = int(round(WINDOW_WIDTH / 32.0))
 COMPASS_FONT = ("Arial", str(COMPASS_FONT_HEIGHT))
 
 def unix_time(aDate):
@@ -53,6 +53,14 @@ class RobotMonitor:
 		self.data = RobotData()
 		self.drawSensorBackground()
 		self.frameCount = 0
+
+		image = Image.open("Roz-Pitch.png")
+		newSize = self.percentToWindow(0.16)
+		self.cachedPitchImage = image.resize((newSize, newSize), Image.ANTIALIAS)
+
+		image = Image.open("Roz-Roll.png")
+		self.cachedRollImage = image.resize((newSize, newSize), Image.ANTIALIAS)
+
 		self.startTime = unix_time_millis(dt.datetime.utcnow())
 		self.updateSensorValues()
 
@@ -155,10 +163,7 @@ class RobotMonitor:
 		centerX = self.percentToWindow(0.38)
 		centerY = self.percentToWindow(0.51)
 		self.addRedraw(self.sensorCanvas.create_line(self.rotateLine(points, (centerX, centerY), -self.data.pitch), width=LINE_WIDTH, fill="Blue"))
-		image = Image.open("Roz-Pitch.png")
-		newSize = self.percentToWindow(0.16)
-		image = image.resize((newSize, newSize), Image.ANTIALIAS)
-		image = image.rotate(self.data.pitch, Image.BICUBIC, True)
+		image = self.cachedPitchImage.rotate(self.data.pitch, Image.BICUBIC, True)
 		photo = ImageTk.PhotoImage(image)
 		self.pitchImage = photo
 		self.addRedraw(self.sensorCanvas.create_image(centerX, centerY, image=photo))
@@ -169,10 +174,7 @@ class RobotMonitor:
 		centerX = self.percentToWindow(0.62)
 		centerY = self.percentToWindow(0.51)
 		self.addRedraw(self.sensorCanvas.create_line(self.rotateLine(points, (centerX, centerY), -self.data.roll), width=LINE_WIDTH, fill="Blue"))
-		image = Image.open("Roz-Roll.png")
-		newSize = self.percentToWindow(0.16)
-		image = image.resize((newSize, newSize), Image.ANTIALIAS)
-		image = image.rotate(self.data.roll, Image.BICUBIC, True)
+		image = self.cachedRollImage.rotate(self.data.roll, Image.BICUBIC, True)
 		photo = ImageTk.PhotoImage(image)
 		self.rollImage = photo
 		self.addRedraw(self.sensorCanvas.create_image(centerX, centerY, image=photo))
@@ -268,6 +270,7 @@ class RobotMonitor:
 
 	def updateSensorValues(self):
 		startTime = unix_time_millis(dt.datetime.utcnow())
+		self.frameCount += 1
 		self.removeRedrawSet()
 		self.drawFrontIRSensor(self.data.frontClose)
 		self.drawOneLine(self.data.frontRange, "mm", (self.percentToWindow(0.5), self.percentToWindow(0.09)))
@@ -292,6 +295,8 @@ class RobotMonitor:
 		drawTime = int(unix_time_millis(dt.datetime.utcnow()) - startTime)
 		waitTime = max(FRAME_DELAY - drawTime, 1)
 		self.drawPrefixedOneLine("draw time:", drawTime, "ms", (self.percentToWindow(0.5), self.percentToWindow(0.98)))
+# 		elapsedTime = int(unix_time_millis(dt.datetime.utcnow()) - self.startTime)
+# 		self.drawPrefixedOneLine(self.frameCount, " - ", elapsedTime, (self.percentToWindow(0.5), self.percentToWindow(0.98)))
 		self.sensorCanvas.after(waitTime, self.updateSensorValues)
 
 

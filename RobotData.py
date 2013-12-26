@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import random
+import math
+
 class RobotData:
 	def __init__(self):
 		self.frontRange = 0
@@ -35,3 +38,13 @@ class RobotData:
 		self.motionSpeed = 27
 		self.motionRotation = -0.02
 		self.odometer += 3
+
+		if random.randint(1,100) < 40:
+			self.pitch += math.copysign(2, self.pitch)
+		else:
+			self.pitch += math.copysign(2, -self.pitch)
+
+		if random.randint(1,100) < 40:
+			self.roll += math.copysign(2, self.roll)
+		else:
+			self.roll += math.copysign(2, -self.roll)
