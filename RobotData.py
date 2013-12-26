@@ -24,3 +24,14 @@ class RobotData:
 		self.heading = (self.heading + 5) % 360
 		self.frontRange = (self.frontRange + 1) % 25
 		self.frontClose = (self.frontRange <= 4)
+		self.leftRange = (self.leftRange - 1) % 25
+		self.leftClose = (self.leftRange <= 4)
+		self.rightRange = (self.rightRange + 1) % 25
+		self.rightClose = (self.rightRange <= 4)
+		self.leftRPM = (self.leftRPM + 1) % 300
+		self.rightRPM = (self.rightRPM + 1) % 300
+		self.leftCurrent = 35
+		self.rightCurrent = 37
+		self.motionSpeed = 27
+		self.motionRotation = -0.02
+		self.odometer += 3
