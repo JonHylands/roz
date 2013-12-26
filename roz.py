@@ -18,7 +18,7 @@ FRONT_OBSTACLE_TURN_SPEED = 0.5
 SIDE_OBSTACLE_TURN_SPEED = 0.1
 
 FRONT_OBSTACLE_TURN_TIME = 2000
-MAX_FORWARD_SPEED = 160
+MAX_FORWARD_SPEED = 150
 START_FORWARD_SPEED = (MAX_FORWARD_SPEED * 0.3)
 
 FORWARD_ROT_Z = -0.02
@@ -33,8 +33,8 @@ class Roz:
 		self.ikEngine.setController(self.controller)
 		self.debug = False
 		self.logDebug = True
+		self.readSensors()
 		self.shutdown = False
-
 
 	def isButtonPushed(self):
 		byte = self.controller.readOneByteRegister(122, 0x26) #control_digital_0
@@ -44,24 +44,26 @@ class Roz:
 		if self.logDebug:
 			print logString
 
-	def readSharpIRSensor(self, channel):
-		sample = self.controller.readTwoByteRegister(122, 0x1A + (2 * channel)) / 4
+	def convertSharpIRSensor(self, rawValue):
+		sample = rawValue / 4
 		if sample < 10:
 			return 254
 		sample = 1309 / (sample - 3)
 		return sample - 1
 
-	def readSmoothSharpIRSensor(self, channel):
-		value = self.readSharpIRSensor(channel)
-		value += self.readSharpIRSensor(channel)
-		value += self.readSharpIRSensor(channel)
-		value += self.readSharpIRSensor(channel)
-		return value / 4
+	def readSharpIRSensor(self, channel):
+		sample = self.controller.readTwoByteRegister(122, 0x1A + (2 * channel))
+		return self.convertSharpIRSensor(sample)
 
 	def readSensors(self):
-		self.sensorFrontDistance = self.readSharpIRSensor(5)
-		self.sensorLeftDistance = self.readSharpIRSensor(4)
-		self.sensorRightDistance = self.readSharpIRSensor(3)
+		# we could read the registers one at a time using readSharpIRSensor(), but its much faster to do it this way
+		rawData = self.controller.readData(122, 32, 6) # read channels 3, 4, and 5 all at once
+		frontRaw = ord(rawData[4]) + (ord(rawData[5]) << 8) # extract channel 5 - front
+		self.sensorFrontDistance = self.convertSharpIRSensor(frontRaw)
+		leftRaw = ord(rawData[2]) + (ord(rawData[3]) << 8) # extract channel 4 - left
+		self.sensorLeftDistance = self.convertSharpIRSensor(leftRaw)
+		rightRaw = ord(rawData[0]) + (ord(rawData[1]) << 8) # extract channel 3 - right
+		self.sensorRightDistance = self.convertSharpIRSensor(rightRaw)
 
 	#=====================================
 	#
@@ -173,7 +175,7 @@ roz.ikEngine.setupForWalk()
 roz.ikEngine.setTranTime(100)
 
 while not roz.shutdown:
-	roz.readSensors()
+ 	roz.readSensors()
 	roz.stateMachine.update()
 	roz.ikEngine.handleIK()
 

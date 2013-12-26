@@ -129,6 +129,26 @@ class BioloidController:
 		else:
 			return -1
 
+	def readData(self, deviceId, controlTableIndex, count):
+		checksum = 0xFF - ((deviceId + 6 + controlTableIndex + count) % 256)
+		self.buffer = ""
+		self.buffer += chr(0xFF)
+		self.buffer += chr(0xFF)
+		self.buffer += chr(deviceId)
+		self.buffer += chr(4) # length
+		self.buffer += chr(AX_READ_DATA)
+		self.buffer += chr(controlTableIndex)
+		self.buffer += chr(count)
+		self.buffer += chr(checksum)
+		self.serialPort.write(self.buffer)
+		self.buffer = ""
+		readBuffer = self.serialPort.read(6 + count)
+		if len(readBuffer) == (6 + count):
+			dataEndIndex = 5 + count
+			return readBuffer[5:dataEndIndex]
+		else:
+			return -1
+
 	def interpolateSetup(self, time):
 		frames = (time / BIOLOID_FRAME_LENGTH) + 1
 		self.lastFrame = millis()
