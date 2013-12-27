@@ -62,9 +62,7 @@ class IKEngine:
 		self.gait["LF_GAIT"] = [0,0,0,0]
 		self.gait["RR_GAIT"] = [0,0,0,0]
 		self.gait["LR_GAIT"] = [0,0,0,0]
-		self.order = {"RF_GAIT":0,"LR_GAIT":0,"LF_GAIT":2,"RR_GAIT":2}
-		self.stepsInCycle = 4
-		self.pushSteps = 2
+		self.setSmoothAmbleGait()
 		self.tranTime = 175
 		self.cycleTime = (self.stepsInCycle * self.tranTime) / 1000.0;
 
@@ -83,6 +81,16 @@ class IKEngine:
 		self.config()
 
 		self.logDebug = False
+
+	def setAmbleGait(self):
+		self.order = {"RF_GAIT":0,"LR_GAIT":0,"LF_GAIT":2,"RR_GAIT":2}
+		self.stepsInCycle = 4
+		self.pushSteps = 2
+
+	def setSmoothAmbleGait(self):
+		self.order = {"RF_GAIT":1,"LR_GAIT":1,"LF_GAIT":4,"RR_GAIT":4}
+		self.stepsInCycle = 6
+		self.pushSteps = 4
 
 	def setController(self, aBioloidController):
 		self.controller = aBioloidController
@@ -118,14 +126,13 @@ class IKEngine:
 		return self.gait[leg]
 
 
-	def setupForWalk(self):
+	def setupForWalk(self, pose):
 		self.controller.readPose()
-		self.controller.loadPose(self.controller.standingPose)
+		self.controller.loadPose(pose)
 		self.controller.interpolateSetup(1000)
 		while self.controller.interpolating:
 			self.controller.interpolateStep()
 			time.sleep(0.003)
-		self.controller.setHeadPosition()
 
 
 	def handleIK(self):

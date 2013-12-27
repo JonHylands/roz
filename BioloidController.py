@@ -30,7 +30,6 @@ class BioloidController:
 			self.serialPort = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000, timeout=1)
 		else:
 			self.serialPort = serial.Serial(port='COM4', baudrate=1000000, timeout=1)
-		self.standingPose = [450, 570, 600, 420, 550, 460, 570, 450, 420, 600, 460, 550]
 
 	# Load a pose into nextPose
 	def loadPose(self, poseArray):
@@ -63,31 +62,6 @@ class BioloidController:
 			self.buffer += chr(self.id[i])
 			self.buffer += chr(temp & 0xFF)
 			self.buffer += chr(temp >> 8)
-		self.buffer += chr(0xFF - (checksum % 256))
-		self.serialPort.write(self.buffer)
-		self.buffer = ""
-
-	def setHeadPosition(self):
-		length = 4 + (2 * 3)
-		checksum = 254 + length + AX_SYNC_WRITE + 2 + AX_GOAL_POSITION
-		self.buffer = ""
-		self.buffer += chr(0xFF)
-		self.buffer += chr(0xFF)
-		self.buffer += chr(0xFE) # broadcast id
-		self.buffer += chr(length)
-		self.buffer += chr(AX_SYNC_WRITE)
-		self.buffer += chr(AX_GOAL_POSITION) # write to this location
-		self.buffer += chr(2) # write two bytes for each servo
-		temp = 511
-		checksum += (temp & 0xFF) + (temp >> 8) + 13
-		self.buffer += chr(13)
-		self.buffer += chr(temp & 0xFF)
-		self.buffer += chr(temp >> 8)
-		temp = 490
-		checksum += (temp & 0xFF) + (temp >> 8) + 14
-		self.buffer += chr(14)
-		self.buffer += chr(temp & 0xFF)
-		self.buffer += chr(temp >> 8)
 		self.buffer += chr(0xFF - (checksum % 256))
 		self.serialPort.write(self.buffer)
 		self.buffer = ""

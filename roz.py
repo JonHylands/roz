@@ -22,6 +22,9 @@ MAX_FORWARD_SPEED = 150
 START_FORWARD_SPEED = (MAX_FORWARD_SPEED * 0.3)
 
 MINIMUM_VOLTAGE = 10.0
+MAXIMUM_TEMPERATURE = 85
+
+WATCHDOG_TIME_INTERVAL = 2000 # milliseconds between watchdog checks
 
 MINI_IO_ID = 122
 
@@ -43,24 +46,32 @@ MINI_IO_DIGITAL_0 = 38
 MINI_IO_DIGITAL_2 = 40
 MINI_IO_DIGITAL_4 = 42
 
+HEAD_YAW_ID = 13
+HEAD_PITCH_ID = 14
+
+AX_GOAL_POSITION = 30
 AX_12_VOLTAGE = 42
+AX_12_TEMPERATURE = 43
 
 FORWARD_ROT_Z = -0.02
 
 class Roz:
 
-	def __init__(self, opt=4, debug=False, gaitGen = None):
-		self.debug = debug	# do we print debug messages or not?
-
+	def __init__(self):
+		self.standingPose = [450, 570, 600, 420, 550, 460, 570, 450, 420, 600, 460, 550]
 		self.controller = BioloidController()
 		self.ikEngine = IKEngine()
 		self.ikEngine.setController(self.controller)
+		self.ikEngine.setupForWalk(self.standingPose)
+		self.ikEngine.setTranTime(100)
 		self.debug = False
 		self.logDebug = True
 		self.readSensors()
 		self.shutdown = False
 		self.heartbeatOn = False
 		self.setupMiniIOBoard()
+		self.setupHeadPosition()
+		self.watchdogServoId = 1
 
 	def setupMiniIOBoard(self):
 		# set the push button on Digital(0) to input
@@ -71,6 +82,14 @@ class Roz:
 		self.controller.writeData(MINI_IO_ID, MINI_IO_DIGITAL_4_DIRECTION, [MINI_IO_OUTPUT_DIRECTION])
 		self.controller.writeData(MINI_IO_ID, MINI_IO_DIGITAL_2, [0])
 		self.controller.writeData(MINI_IO_ID, MINI_IO_DIGITAL_4, [0])
+
+	def setupHeadPosition(self):
+		position = 511
+		bufferData = [position & 0xFF, position >> 8]
+		self.controller.writeData(HEAD_YAW_ID, AX_GOAL_POSITION, bufferData)
+		position = 490
+		bufferData = [position & 0xFF, position >> 8]
+		self.controller.writeData(HEAD_PITCH_ID, AX_GOAL_POSITION, bufferData)
 
 	def isButtonPushed(self):
 		byte = self.controller.readOneByteRegister(MINI_IO_ID, MINI_IO_DIGITAL_0) #control_digital_0
@@ -89,8 +108,15 @@ class Roz:
 	def readBatteryVoltage(self):
 		return self.controller.readOneByteRegister(1, AX_12_VOLTAGE) / 10.0
 
-	def checkBatteryVoltage(self):
-		if self.readBatteryVoltage() < MINIMUM_VOLTAGE:
+	def checkBatteryVoltageAndTemperature(self, servoId):
+		data = self.controller.readData(servoId, AX_12_VOLTAGE, 2)
+		voltage = ord(data[0])
+		temperature = ord(data[1])
+		if voltage < MINIMUM_VOLTAGE:
+			print 'Battery too low: %3.1f volts - shutting down' % voltage
+			self.stateMachine.transitionTo(self.shutdownState)
+		if temperature > MAXIMUM_TEMPERATURE:
+			print 'Servo %d temperature too high: %d degrees C' % (servoId, temperature)
 			self.stateMachine.transitionTo(self.shutdownState)
 
 	def log(self, logString):
@@ -236,19 +262,23 @@ class Roz:
 	#
 
 	def handleWatchdogState(self):
-		self.checkBatteryVoltage()
+		# round robin the servos when checking voltage and temperature
+		self.checkBatteryVoltageAndTemperature(self.watchdogServoId)
+		self.watchdogServoId += 1
+		if self.watchdogServoId > 12:
+			self.watchdogServoId = 1
 		self.watchdogStateMachine.transitionTo(self.watchdogWaitState)
 
 	def handleWatchdogWaitState(self):
 		elapsedTime = self.watchdogStateMachine.getCurrentStateMillis()
-		if elapsedTime > 5000:
+		if elapsedTime > WATCHDOG_TIME_INTERVAL:
 			self.watchdogStateMachine.transitionTo(self.watchdogState)
 
 
 #=====================================
 
 roz = Roz()
-voltage = roz.controller.readOneByteRegister(1, AX_12_VOLTAGE) / 10.0
+voltage = roz.readBatteryVoltage()
 print 'Battery: ', voltage, ' volts'
 
 roz.waitingForButtonState = State(roz.enterWaitingForButtonState, roz.handleWaitingForButtonState, None)
@@ -264,9 +294,6 @@ roz.heartbeatStateMachine = FiniteStateMachine(roz.heartbeatState)
 roz.watchdogState = State(None, roz.handleWatchdogState, None)
 roz.watchdogWaitState = State(None, roz.handleWatchdogWaitState, None)
 roz.watchdogStateMachine = FiniteStateMachine(roz.watchdogState)
-
-roz.ikEngine.setupForWalk()
-roz.ikEngine.setTranTime(100)
 
 while not roz.shutdown:
 	roz.readSensors()
