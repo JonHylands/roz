@@ -21,6 +21,30 @@ FRONT_OBSTACLE_TURN_TIME = 2000
 MAX_FORWARD_SPEED = 150
 START_FORWARD_SPEED = (MAX_FORWARD_SPEED * 0.3)
 
+MINIMUM_VOLTAGE = 10.0
+
+MINI_IO_ID = 122
+
+MINI_IO_DIGITAL_0_DIRECTION = 6
+MINI_IO_DIGITAL_2_DIRECTION = 8
+MINI_IO_DIGITAL_4_DIRECTION = 10
+
+MINI_IO_INPUT_DIRECTION = 0
+MINI_IO_OUTPUT_DIRECTION = 1
+
+MINI_IO_ANALOG_0 = 26
+MINI_IO_ANALOG_1 = 28
+MINI_IO_ANALOG_2 = 30
+MINI_IO_ANALOG_3 = 32
+MINI_IO_ANALOG_4 = 34
+MINI_IO_ANALOG_5 = 36
+
+MINI_IO_DIGITAL_0 = 38
+MINI_IO_DIGITAL_2 = 40
+MINI_IO_DIGITAL_4 = 42
+
+AX_12_VOLTAGE = 42
+
 FORWARD_ROT_Z = -0.02
 
 class Roz:
@@ -36,20 +60,38 @@ class Roz:
 		self.readSensors()
 		self.shutdown = False
 		self.heartbeatOn = False
+		self.setupMiniIOBoard()
+
+	def setupMiniIOBoard(self):
+		# set the push button on Digital(0) to input
+		self.controller.writeData(MINI_IO_ID, MINI_IO_DIGITAL_0_DIRECTION, [MINI_IO_INPUT_DIRECTION])
+
+		# set the LEDs on Digital(2) & (4) to output, and clear them
+		self.controller.writeData(MINI_IO_ID, MINI_IO_DIGITAL_2_DIRECTION, [MINI_IO_OUTPUT_DIRECTION])
+		self.controller.writeData(MINI_IO_ID, MINI_IO_DIGITAL_4_DIRECTION, [MINI_IO_OUTPUT_DIRECTION])
+		self.controller.writeData(MINI_IO_ID, MINI_IO_DIGITAL_2, [0])
+		self.controller.writeData(MINI_IO_ID, MINI_IO_DIGITAL_4, [0])
 
 	def isButtonPushed(self):
-		byte = self.controller.readOneByteRegister(122, 0x26) #control_digital_0
+		byte = self.controller.readOneByteRegister(MINI_IO_ID, MINI_IO_DIGITAL_0) #control_digital_0
 		return byte == 0
 
 	def turnOnHeartbeatLED(self):
 		if not self.heartbeatOn:
-			self.controller.writeData(122, 40, [1])
+			self.controller.writeData(MINI_IO_ID, MINI_IO_DIGITAL_2, [1])
 			self.heartbeatOn = True
 
 	def turnOffHeartbeatLED(self):
 		if self.heartbeatOn:
-			self.controller.writeData(122, 40, [0])
+			self.controller.writeData(MINI_IO_ID, MINI_IO_DIGITAL_2, [0])
 			self.heartbeatOn = False
+
+	def readBatteryVoltage(self):
+		return self.controller.readOneByteRegister(1, AX_12_VOLTAGE) / 10.0
+
+	def checkBatteryVoltage(self):
+		if self.readBatteryVoltage() < MINIMUM_VOLTAGE:
+			self.stateMachine.transitionTo(self.shutdownState)
 
 	def log(self, logString):
 		if self.logDebug:
@@ -63,12 +105,12 @@ class Roz:
 		return sample - 1
 
 	def readSharpIRSensor(self, channel):
-		sample = self.controller.readTwoByteRegister(122, 0x1A + (2 * channel))
+		sample = self.controller.readTwoByteRegister(MINI_IO_ID, MINI_IO_ANALOG_0 + (2 * channel))
 		return self.convertSharpIRSensor(sample)
 
 	def readSensors(self):
 		# we could read the registers one at a time using readSharpIRSensor(), but its much faster to do it this way
-		rawData = self.controller.readData(122, 32, 6) # read channels 3, 4, and 5 all at once
+		rawData = self.controller.readData(MINI_IO_ID, MINI_IO_ANALOG_3, 6) # read channels 3, 4, and 5 all at once
 		frontRaw = ord(rawData[4]) + (ord(rawData[5]) << 8) # extract channel 5 - front
 		self.sensorFrontDistance = self.convertSharpIRSensor(frontRaw)
 		leftRaw = ord(rawData[2]) + (ord(rawData[3]) << 8) # extract channel 4 - left
@@ -173,7 +215,7 @@ class Roz:
 
 	#=====================================
 	#
-	#       Heartbeat State
+	#       Heartbeat State Machine
 	#
 
 	def enterHeartbeatState(self):
@@ -181,17 +223,32 @@ class Roz:
 		self.heartbeatCycleTime = 1000
 
 	def handleHeartbeatState(self):
-		elapsedTime = roz.heartbeatStateMachine.getCurrentStateMillis()
+		elapsedTime = self.heartbeatStateMachine.getCurrentStateMillis()
 		if elapsedTime % self.heartbeatCycleTime > self.heartbeatOnTime:
 			self.turnOffHeartbeatLED()
 		else:
 			self.turnOnHeartbeatLED()
 
 
+	#=====================================
+	#
+	#       Watchdog State Machine
+	#
+
+	def handleWatchdogState(self):
+		self.checkBatteryVoltage()
+		self.watchdogStateMachine.transitionTo(self.watchdogWaitState)
+
+	def handleWatchdogWaitState(self):
+		elapsedTime = self.watchdogStateMachine.getCurrentStateMillis()
+		if elapsedTime > 5000:
+			self.watchdogStateMachine.transitionTo(self.watchdogState)
+
+
 #=====================================
 
 roz = Roz()
-voltage = roz.controller.readOneByteRegister(1, 0x2A) / 10.0
+voltage = roz.controller.readOneByteRegister(1, AX_12_VOLTAGE) / 10.0
 print 'Battery: ', voltage, ' volts'
 
 roz.waitingForButtonState = State(roz.enterWaitingForButtonState, roz.handleWaitingForButtonState, None)
@@ -204,6 +261,10 @@ roz.stateMachine = FiniteStateMachine(roz.waitingForButtonState)
 roz.heartbeatState = State(roz.enterHeartbeatState, roz.handleHeartbeatState, None)
 roz.heartbeatStateMachine = FiniteStateMachine(roz.heartbeatState)
 
+roz.watchdogState = State(None, roz.handleWatchdogState, None)
+roz.watchdogWaitState = State(None, roz.handleWatchdogWaitState, None)
+roz.watchdogStateMachine = FiniteStateMachine(roz.watchdogState)
+
 roz.ikEngine.setupForWalk()
 roz.ikEngine.setTranTime(100)
 
@@ -212,6 +273,7 @@ while not roz.shutdown:
 	roz.heartbeatStateMachine.update()
 	roz.stateMachine.update()
 	roz.ikEngine.handleIK()
+	roz.watchdogStateMachine.update()
 
 print 'Shutdown'
 
