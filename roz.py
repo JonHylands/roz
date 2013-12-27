@@ -35,10 +35,21 @@ class Roz:
 		self.logDebug = True
 		self.readSensors()
 		self.shutdown = False
+		self.heartbeatOn = False
 
 	def isButtonPushed(self):
 		byte = self.controller.readOneByteRegister(122, 0x26) #control_digital_0
 		return byte == 0
+
+	def turnOnHeartbeatLED(self):
+		if not self.heartbeatOn:
+			self.controller.writeData(122, 40, [1])
+			self.heartbeatOn = True
+
+	def turnOffHeartbeatLED(self):
+		if self.heartbeatOn:
+			self.controller.writeData(122, 40, [0])
+			self.heartbeatOn = False
 
 	def log(self, logString):
 		if self.logDebug:
@@ -156,7 +167,26 @@ class Roz:
 	def enterShutdownState(self):
 		self.ikEngine.travelX = 0
 		self.ikEngine.travelRotZ = 0
+		self.turnOffHeartbeatLED()
 		self.shutdown = True
+
+
+	#=====================================
+	#
+	#       Heartbeat State
+	#
+
+	def enterHeartbeatState(self):
+		self.heartbeatOnTime = 100
+		self.heartbeatCycleTime = 1000
+
+	def handleHeartbeatState(self):
+		elapsedTime = roz.heartbeatStateMachine.getCurrentStateMillis()
+		if elapsedTime % self.heartbeatCycleTime > self.heartbeatOnTime:
+			self.turnOffHeartbeatLED()
+		else:
+			self.turnOnHeartbeatLED()
+
 
 #=====================================
 
@@ -171,11 +201,15 @@ roz.obstacleAvoidanceState = State(roz.enterObstacleAvoidanceState, roz.handleOb
 roz.shutdownState = State(roz.enterShutdownState, None, None)
 roz.stateMachine = FiniteStateMachine(roz.waitingForButtonState)
 
+roz.heartbeatState = State(roz.enterHeartbeatState, roz.handleHeartbeatState, None)
+roz.heartbeatStateMachine = FiniteStateMachine(roz.heartbeatState)
+
 roz.ikEngine.setupForWalk()
 roz.ikEngine.setTranTime(100)
 
 while not roz.shutdown:
- 	roz.readSensors()
+	roz.readSensors()
+	roz.heartbeatStateMachine.update()
 	roz.stateMachine.update()
 	roz.ikEngine.handleIK()
 

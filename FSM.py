@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+import time
+
+def millis():
+	return int(round(time.time() * 1000))
+
 class State:
 
 	def __init__(self, enterFunction, updateFunction, exitFunction):
@@ -8,6 +13,7 @@ class State:
 		self.userExit = exitFunction
 
 	def enter(self):
+		self.startTimeMillis = millis()
 		if self.userEnter is not None:
 			self.userEnter()
 
@@ -18,6 +24,9 @@ class State:
 	def exit(self):
 		if self.userExit is not None:
 			self.userExit()
+
+	def elapsedTimeMillis(self):
+		return millis() - self.startTimeMillis
 
 class FiniteStateMachine:
 
@@ -32,6 +41,9 @@ class FiniteStateMachine:
 
 	def getCycleCount(self):
 		return self.cycleCount
+
+	def getCurrentStateMillis(self):
+		return self.currentState.elapsedTimeMillis()
 
 	def update(self):
 		if self.needToTriggerEnter:

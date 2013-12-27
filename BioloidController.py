@@ -12,6 +12,7 @@ BIOLOID_FRAME_LENGTH = 33
 
 AX_GOAL_POSITION = 30
 AX_READ_DATA = 2
+AX_WRITE_DATA = 3
 AX_SYNC_WRITE = 131
 
 class BioloidController:
@@ -90,6 +91,25 @@ class BioloidController:
 		self.buffer += chr(0xFF - (checksum % 256))
 		self.serialPort.write(self.buffer)
 		self.buffer = ""
+
+	def writeData(self, deviceId, controlTableIndex, byteData):
+		length = len(byteData) + 3
+		checksum = deviceId + controlTableIndex + length + AX_WRITE_DATA
+		self.buffer = ""
+		self.buffer += chr(0xFF)
+		self.buffer += chr(0xFF)
+		self.buffer += chr(deviceId)
+		self.buffer += chr(length)
+		self.buffer += chr(AX_WRITE_DATA)
+		self.buffer += chr(controlTableIndex)
+		for byte in byteData:
+			checksum += byte
+			self.buffer += chr(byte)
+		self.buffer += chr(0xFF - (checksum % 256))
+		self.serialPort.write(self.buffer)
+		self.buffer = ""
+		readBuffer = self.serialPort.read(6)
+		return len(readBuffer) > 0
 
 	def readTwoByteRegister(self, deviceId, controlTableIndex):
 		checksum = 0xFF - ((deviceId + 6 + controlTableIndex + 2) % 256)
