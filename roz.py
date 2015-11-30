@@ -6,7 +6,6 @@
 """
 
 import pyb
-import struct
 
 from BioloidController import BioloidController
 from FSM import State, FiniteStateMachine
@@ -28,7 +27,7 @@ MAXIMUM_TEMPERATURE = 85
 
 LEG_SERVO_COUNT = 12
 
-WATCHDOG_TIME_INTERVAL = 2000 # milliseconds between watchdog checks
+WATCHDOG_TIME_INTERVAL = 5000 # milliseconds between watchdog checks
 
 HEAD_YAW_ID = 13
 AX_CENTER_POSITION = 511
@@ -39,7 +38,7 @@ AX_PRESENT_POSITION = 36
 AX_12_VOLTAGE = 42
 AX_12_TEMPERATURE = 43
 
-FORWARD_ROT_Z = -0.02
+FORWARD_ROT_Z = 0
 
 RIGHT_RANGE_PIN = 'C1'
 LEFT_RANGE_PIN = 'A1'
@@ -62,15 +61,17 @@ BLUE_LED = 4
 class Roz:
 
     def __init__(self):
+        self.logger = Logger('logfile.txt')
         self.standingPose = [450, 570, 600, 420, 550, 460, 570, 450, 420, 600, 460, 550]
         self.controller = BioloidController()
+        self.controller.setLogger(self.logger)
         self.ikEngine = IKEngine()
         self.ikEngine.setController(self.controller)
+        self.ikEngine.setLogger(self.logger)
         self.setupHeadPosition()
         self.ikEngine.setupForWalk(self.standingPose)
-        self.ikEngine.setTranTime(170)
+        self.ikEngine.setTranTime(150)
         self.debug = False
-        self.logger = Logger('logfile.txt')
         self.frontRangeFinder = RangeFinder(FRONT_RANGE_PIN, RANGE_MAX)
         self.leftRangeFinder = RangeFinder(LEFT_RANGE_PIN, RANGE_MAX)
         self.rightRangeFinder = RangeFinder(RIGHT_RANGE_PIN, RANGE_MAX)

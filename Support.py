@@ -8,6 +8,8 @@ import pyb
 
 class Logger:
 
+
+
     def __init__(self, logFilename):
         self.file = open('/sd/%s' % logFilename, 'wt')
         self.startCount = pyb.millis()
@@ -23,6 +25,7 @@ class Logger:
 
     def close(self):
         self.file.close()
+
 
 #================================================
 #
@@ -44,6 +47,7 @@ class RangeFinder:
             return self.rangeMax
         else:
             return distance
+
 
 #================================================
 #
@@ -71,6 +75,7 @@ class Metro:
 
     def reset(self):
         self.previous = pyb.millis()
+
 
 #================================================
 #

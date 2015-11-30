@@ -27,10 +27,10 @@ def sq(x):
 # Convert radians to servo position offset.
 def radToServo(rads, resolution = 1024):
     if resolution == 4096:
-        val = (rads * 100) / 51 * 25;
+        val = (rads * 100) / 51 * 25
         return int(val)
     else:
-        val = (rads * 100) / 51 * 100;
+        val = (rads * 100) / 51 * 100
         return int(val)
 
 COXA = 0
@@ -72,10 +72,11 @@ class IKEngine:
         self.cycleTime = (self.stepsInCycle * self.transitionTime) / 1000.0;
 
         # Used to generate servo values for IK
-        self.mins = [0, 247, 378, 164, 165, 228, 158, 376, 246, 158, 165, 164, 228]
-        self.maxs = [0, 649, 780, 860, 858, 867, 799, 784, 654, 866, 866, 785, 861]
+        # These values are driven from the physical layout of the robot
+        self.mins = [0, 247, 378, 164, 165, 228, 158, 378, 247, 158, 165, 164, 228]
+        self.maxs = [0, 649, 780, 860, 858, 867, 799, 780, 649, 866, 866, 785, 861]
         self.resolutions = [0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
-        self.neutrals = [0, 350, 673, 511, 511, 511, 511, 673, 350, 511, 511, 511, 511]
+        self.neutrals = [0, 348, 675, 511, 511, 511, 511, 675, 348, 511, 511, 511, 511]
         self.signs = [0, 1, -1, 1, -1, 1, -1, -1, 1, -1, 1, -1, 1]
         self.step = 0
         self.liftHeight = 20
@@ -101,6 +102,9 @@ class IKEngine:
     def setController(self, aBioloidController):
         self.controller = aBioloidController
 
+    def setLogger(self, aLogger):
+        self.logger = aLogger
+
     def setTranTime(self, newTranTime):
         self.transitionTime = newTranTime
 
@@ -118,16 +122,16 @@ class IKEngine:
                 self.gait[leg][3] = 0      # r
             elif (self.order[leg]+1 == self.step) or (self.order[leg]-(self.stepsInCycle-1) == self.step):   # gaits in step -1
                 # leg down!
-                self.gait[leg][0] = self.travelX/2 #(self.travelX * self.cycleTime * self.pushSteps) / (2 * self.stepsInCycle) # travelX/2
-                self.gait[leg][1] = self.travelY/2 #(self.travelY * self.cycleTime * self.pushSteps) / (2 * self.stepsInCycle) # travelY/2
+                self.gait[leg][0] = self.travelX / 2 #(self.travelX * self.cycleTime * self.pushSteps) / (2 * self.stepsInCycle) # travelX/2
+                self.gait[leg][1] = self.travelY / 2 #(self.travelY * self.cycleTime * self.pushSteps) / (2 * self.stepsInCycle) # travelY/2
                 self.gait[leg][2] = 0
-                self.gait[leg][3] = self.travelRotZ/2 # (self.travelRotZ * self.cycleTime * self.pushSteps) / (2 * self.stepsInCycle) # travelRotZ/2
+                self.gait[leg][3] = self.travelRotZ / 2 # (self.travelRotZ * self.cycleTime * self.pushSteps) / (2 * self.stepsInCycle) # travelRotZ/2
             else:
                 # move body forward
-                self.gait[leg][0] = self.gait[leg][0] - self.travelX/2 # (self.travelX * self.cycleTime) / self.stepsInCycle # travelX/6
-                self.gait[leg][1] = self.gait[leg][1] - self.travelY/2 # (self.travelY * self.cycleTime) / self.stepsInCycle # travelY/6
+                self.gait[leg][0] = self.gait[leg][0] - self.travelX / self.pushSteps # (self.travelX * self.cycleTime) / self.stepsInCycle # travelX/6
+                self.gait[leg][1] = self.gait[leg][1] - self.travelY / self.pushSteps # (self.travelY * self.cycleTime) / self.stepsInCycle # travelY/6
                 self.gait[leg][2] = 0
-                self.gait[leg][3] = self.gait[leg][3] - self.travelRotZ/2 # (self.travelRotZ * self.cycleTime) / self.stepsInCycle # travelRotZ/6
+                self.gait[leg][3] = self.gait[leg][3] - self.travelRotZ / self.pushSteps # (self.travelRotZ * self.cycleTime) / self.stepsInCycle # travelRotZ/6
         #print 'Gait: ', leg, ' -> ', self.gait[leg]
         return self.gait[leg]
 
@@ -189,15 +193,15 @@ class IKEngine:
         cosA = cos(self.bodyRotZ + Zrot)
         sinA = sin(self.bodyRotZ + Zrot)
 
-        totalX = int(X + Xdisp + self.bodyPosX);
-        totalY = int(Y + Ydisp + self.bodyPosY);
+        totalX = int(X + Xdisp + self.bodyPosX)
+        totalY = int(Y + Ydisp + self.bodyPosY)
 
         answer[0] = int(totalX - int(totalX * cosG * cosA + totalY * sinB * sinG * cosA + Z * cosB * sinG * cosA - totalY * cosB * sinA + Z * sinB * sinA)) + self.bodyPosX
         answer[1] = int(totalY - int(totalX * cosG * sinA + totalY * sinB * sinG * sinA + Z * cosB * sinG * sinA + totalY * cosB * cosA - Z * sinB * cosA)) + self.bodyPosY
         answer[2] = int(Z - int(-totalX * sinG + totalY * sinB * cosG + Z * cosB * cosG))
 
         if self.debug:
-            print ("BodyIK:",answer)
+            self.logger.log ("NUKE: BodyIK: %s" % answer)
         return answer
 
     def legIK(self, X, Y, Z, resolution):
@@ -219,38 +223,40 @@ class IKEngine:
 
             # and tibia angle from femur...
             d1 = sq(self.LENGTH_FEMUR) - sq(im) + sq(self.LENGTH_TIBIA)
-            d2 = 2 * self.LENGTH_TIBIA * self.LENGTH_FEMUR;
+            d2 = 2 * self.LENGTH_TIBIA * self.LENGTH_FEMUR
             answer[2] = radToServo(acos(d1 / float(d2)) - 1.57, resolution)
         except:
             if self.debug:
-                "LegIK FAILED"
+                self.logger.log ("NUKE: LegIK FAILED")
             return [1024,1024,1024,0]
 
         if self.debug:
-            print ("LegIK:",answer)
+            self.logger.log ("NUKE: LegIK: %s" % answer)
         return answer
 
     def doRightFrontIK(self):
         fail = 0
         if self.gaitGen != None:
             gait = self.gaitGen("RF_GAIT")
-        #if self.debug:
-            #print ("RIGHT_FRONT: ", [self.endPoints["RIGHT_FRONT"][i] + gait[i] for i in range(3)])
+        else:
+            return fail
+        if self.debug:
+            self.logger.log ("NUKE: RIGHT_FRONT: %s " % [self.endPoints["RIGHT_FRONT"][i] + gait[i] for i in range(3)])
         servo = self.servos["RF Coxa"]
-        request = self.bodyIK(self.endPoints["RIGHT_FRONT"][0] + gait[0],\
-            self.endPoints["RIGHT_FRONT"][1] + gait[1],\
-            self.endPoints["RIGHT_FRONT"][2] + gait[2],\
+        request = self.bodyIK(self.endPoints["RIGHT_FRONT"][0] + gait[0],
+            self.endPoints["RIGHT_FRONT"][1] + gait[1],
+            self.endPoints["RIGHT_FRONT"][2] + gait[2],
             self.X_COXA, self.Y_COXA, gait[3])
-        solution = self.legIK(self.endPoints["RIGHT_FRONT"][0] + request[0] + gait[0],\
-            self.endPoints["RIGHT_FRONT"][1] + request[1] + gait[1],\
-            self.endPoints["RIGHT_FRONT"][2] + request[2] + gait[2],\
+        solution = self.legIK(self.endPoints["RIGHT_FRONT"][0] + request[0] + gait[0],
+            self.endPoints["RIGHT_FRONT"][1] + request[1] + gait[1],
+            self.endPoints["RIGHT_FRONT"][2] + request[2] + gait[2],
             self.resolutions[servo])
         output = self.neutrals[servo] + self.signs[servo] * solution[COXA]
         if output < self.maxs[servo] and output > self.mins[servo]:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("RF_COXA FAIL: ", output)
+                self.logger.log ("NUKE: RF_COXA FAIL: %s" % output)
             fail = fail + 1
         servo = self.servos["RF Femur"]
         output = self.neutrals[servo] + self.signs[servo] * solution[FEMUR]
@@ -258,7 +264,7 @@ class IKEngine:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("RF_FEMUR FAIL: ", output)
+                self.logger.log ("NUKE: RF_FEMUR FAIL: %s" % output)
             fail = fail + 1
         servo = self.servos["RF Tibia"]
         output = self.neutrals[servo] + self.signs[servo] * solution[TIBIA]
@@ -266,7 +272,7 @@ class IKEngine:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("RF_TIBIA FAIL: ",output)
+                self.logger.log ("NUKE: RF_TIBIA FAIL: %s" % output)
             fail = fail + 1
         return fail
 
@@ -274,23 +280,25 @@ class IKEngine:
         fail = 0
         if self.gaitGen != None:
             gait = self.gaitGen("RR_GAIT")
+        else:
+            return fail
         if self.debug:
-            print ("RIGHT_REAR: ", [self.endPoints["RIGHT_REAR"][i] + gait[i] for i in range(3)])
+            self.logger.log ("NUKE: RIGHT_REAR: %s" % [self.endPoints["RIGHT_REAR"][i] + gait[i] for i in range(3)])
         servo = self.servos["RR Coxa"]
-        request = self.bodyIK(self.endPoints["RIGHT_REAR"][0] + gait[0],\
-            self.endPoints["RIGHT_REAR"][1] + gait[1],\
-            self.endPoints["RIGHT_REAR"][2] + gait[2],\
+        request = self.bodyIK(self.endPoints["RIGHT_REAR"][0] + gait[0],
+            self.endPoints["RIGHT_REAR"][1] + gait[1],
+            self.endPoints["RIGHT_REAR"][2] + gait[2],
             -self.X_COXA, self.Y_COXA, gait[3])
-        solution = self.legIK(-self.endPoints["RIGHT_REAR"][0] - request[0] - gait[0],\
-            self.endPoints["RIGHT_REAR"][1] + request[1] + gait[1],\
-            self.endPoints["RIGHT_REAR"][2] + request[2] + gait[2],\
+        solution = self.legIK(-self.endPoints["RIGHT_REAR"][0] - request[0] - gait[0],
+            self.endPoints["RIGHT_REAR"][1] + request[1] + gait[1],
+            self.endPoints["RIGHT_REAR"][2] + request[2] + gait[2],
             self.resolutions[servo])
         output = self.neutrals[servo] + self.signs[servo] * solution[COXA]
         if output < self.maxs[servo] and output > self.mins[servo]:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("RR_COXA FAIL: ", output)
+                self.logger.log ("NUKE: RR_COXA FAIL: %s" % output)
             fail = fail + 1
         servo = self.servos["RR Femur"]
         output = self.neutrals[servo] + self.signs[servo] * solution[FEMUR]
@@ -298,7 +306,7 @@ class IKEngine:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("RR_FEMUR FAIL:", output)
+                self.logger.log ("NUKE: RR_FEMUR FAIL: %s" % output)
             fail = fail + 1
         servo = self.servos["RR Tibia"]
         output = self.neutrals[servo] + self.signs[servo] * solution[TIBIA]
@@ -306,7 +314,7 @@ class IKEngine:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("RR_TIBIA FAIL:", output)
+                self.logger.log ("NUKE: RR_TIBIA FAIL: %s" % output)
             fail = fail + 1
         return fail
 
@@ -314,23 +322,25 @@ class IKEngine:
         fail = 0
         if self.gaitGen != None:
             gait = self.gaitGen("LF_GAIT")
-        #if self.debug:
-            #print "LEFT_FRONT: ", [self.endPoints["LEFT_FRONT"][i] + gait[i] for i in range(3)]
+        else:
+            return fail
+        if self.debug:
+            self.logger.log ("NUKE: LEFT_FRONT: %s" % [self.endPoints["LEFT_FRONT"][i] + gait[i] for i in range(3)])
         servo = self.servos["LF Coxa"]
-        request = self.bodyIK(self.endPoints["LEFT_FRONT"][0] + gait[0],\
-            self.endPoints["LEFT_FRONT"][1] + gait[1],\
-            self.endPoints["LEFT_FRONT"][2] + gait[2],\
+        request = self.bodyIK(self.endPoints["LEFT_FRONT"][0] + gait[0],
+            self.endPoints["LEFT_FRONT"][1] + gait[1],
+            self.endPoints["LEFT_FRONT"][2] + gait[2],
             self.X_COXA, -self.Y_COXA, gait[3])
-        solution = self.legIK(self.endPoints["LEFT_FRONT"][0] + request[0] + gait[0],\
-            -self.endPoints["LEFT_FRONT"][1] - request[1] - gait[1],\
-            self.endPoints["LEFT_FRONT"][2] + request[2] + gait[2],\
+        solution = self.legIK(self.endPoints["LEFT_FRONT"][0] + request[0] + gait[0],
+            -self.endPoints["LEFT_FRONT"][1] - request[1] - gait[1],
+            self.endPoints["LEFT_FRONT"][2] + request[2] + gait[2],
             self.resolutions[servo])
         output = self.neutrals[servo] + self.signs[servo] * solution[COXA]
         if output < self.maxs[servo] and output > self.mins[servo]:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("LF_COXA FAIL:", output)
+                self.logger.log ("NUKE: LF_COXA FAIL: %s" % output)
             fail = fail + 1
         servo = self.servos["LF Femur"]
         output = self.neutrals[servo] + self.signs[servo] * solution[FEMUR]
@@ -338,7 +348,7 @@ class IKEngine:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("LF_FEMUR FAIL:", output)
+                self.logger.log ("NUKE: LF_FEMUR FAIL: %s" % output)
             fail = fail + 1
         servo = self.servos["LF Tibia"]
         output = self.neutrals[servo] + self.signs[servo] * solution[TIBIA]
@@ -346,7 +356,7 @@ class IKEngine:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("LF_TIBIA FAIL:", output)
+                self.logger.log ("NUKE: LF_TIBIA FAIL: %s" % output)
             fail = fail + 1
         return fail
 
@@ -354,23 +364,25 @@ class IKEngine:
         fail = 0
         if self.gaitGen != None:
             gait = self.gaitGen("LR_GAIT")
-        #if self.debug:
-            #print "LEFT_REAR: ", [self.endPoints["LEFT_REAR"][i] + gait[i] for i in range(3)]
+        else:
+            return fail
+        if self.debug:
+            self.logger.log ("NUKE: LEFT_REAR: %s" % [self.endPoints["LEFT_REAR"][i] + gait[i] for i in range(3)])
         servo = self.servos["LR Coxa"]
-        request = self.bodyIK(self.endPoints["LEFT_REAR"][0] + gait[0],\
-            self.endPoints["LEFT_REAR"][1] + gait[1],\
-            self.endPoints["LEFT_REAR"][2] + gait[2],\
+        request = self.bodyIK(self.endPoints["LEFT_REAR"][0] + gait[0],
+            self.endPoints["LEFT_REAR"][1] + gait[1],
+            self.endPoints["LEFT_REAR"][2] + gait[2],
             -self.X_COXA, -self.Y_COXA, gait[3])
-        solution = self.legIK(-self.endPoints["LEFT_REAR"][0] - request[0] - gait[0],\
-            -self.endPoints["LEFT_REAR"][1] - request[1] - gait[1],\
-            self.endPoints["LEFT_REAR"][2] + request[2] + gait[2],\
+        solution = self.legIK(-self.endPoints["LEFT_REAR"][0] - request[0] - gait[0],
+            -self.endPoints["LEFT_REAR"][1] - request[1] - gait[1],
+            self.endPoints["LEFT_REAR"][2] + request[2] + gait[2],
             self.resolutions[servo])
         output = self.neutrals[servo] + self.signs[servo] * solution[COXA]
         if output < self.maxs[servo] and output > self.mins[servo]:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("LR_COXA FAIL:", output)
+                self.logger.log ("NUKE: LR_COXA FAIL: %s" % output)
             fail = fail + 1
         servo = self.servos["LR Femur"]
         output = self.neutrals[servo] + self.signs[servo] * solution[FEMUR]
@@ -378,7 +390,7 @@ class IKEngine:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("LR_FEMUR FAIL:",output)
+                self.logger.log ("NUKE: LR_FEMUR FAIL: %s" % output)
             fail = fail + 1
         servo = self.servos["LR Tibia"]
         output = self.neutrals[servo] + self.signs[servo] * solution[TIBIA]
@@ -386,7 +398,7 @@ class IKEngine:
             self.setNextPose(servo, output)
         else:
             if self.debug:
-                print ("LR_TIBIA FAIL:", output)
+                self.logger.log ("NUKE: LR_TIBIA FAIL: %s" % output)
             fail = fail + 1
         return fail
 

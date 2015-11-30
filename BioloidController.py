@@ -29,6 +29,9 @@ class BioloidController:
         self.lastFrame = pyb.millis()
         self.serialPort = UART_Bus(1, 1000000, show_packets=False)
 
+    def setLogger(self, aLogger):
+        self.logger = aLogger
+
     # Load a pose into nextPose
     def loadPose(self, poseArray):
         for i in range(self.servoCount):
@@ -44,10 +47,12 @@ class BioloidController:
 
     def writePose(self):
         values = []
+        #logValues = []
         for i in range(self.servoCount):
             values.append(struct.pack('<H', int(self.pose[i])))
-            #print ("SYNC_WRITE ", self.id[i], " - ", int(self.pose[i]))
+            #logValues.append((self.id[i], int(self.pose[i])))
         self.serialPort.sync_write(self.id, AX_GOAL_POSITION, values)
+        #self.logger.log("SYNC_WRITE: %s" % logValues)
 
     def slowMoveServoTo(self, deviceId, targetPosition):
         oldSpeed = self.readTwoByteRegister(deviceId, AX_MOVING_SPEED)
