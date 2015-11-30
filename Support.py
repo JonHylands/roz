@@ -31,15 +31,15 @@ class Logger:
 
 class RangeFinder:
 
-    def __init__(self, rangePinNumber, rangeMax = 20):
+    def __init__(self, rangePinNumber, rangeMax = 50):
         self.adc = pyb.ADC(rangePinNumber)
         self.rangeMax = rangeMax
 
+    # This formula is copied from the Arduino playground
+    # modified for 12 bit A/D, and 3.3 volts instead of 5.0
     def getDistance(self):
         value = self.adc.read()
-        voltage = value * 0.0032258 # 0-1023 -> 0-3.3 volts
-        exactDistance = 100 * ((1.25 / voltage) - 0.15)
-        distance = exactDistance
+        distance = 1.515 * ((6787 * 4 / (value - 3.0)) - 4.0)
         if distance > self.rangeMax:
             return self.rangeMax
         else:
