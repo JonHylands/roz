@@ -6,13 +6,12 @@
 """
 
 import pyb
+import struct
+
 from BioloidController import BioloidController
 from FSM import State, FiniteStateMachine
 from Nuke import IKEngine
 from Support import RangeFinder, HeartbeatLED, OneShotButton, Logger
-
-import struct
-
 
 FRONT_SENSOR_OBSTACLE = 30 # cm
 SIDE_SENSOR_OBSTACLE = 30
@@ -32,8 +31,11 @@ LEG_SERVO_COUNT = 12
 WATCHDOG_TIME_INTERVAL = 2000 # milliseconds between watchdog checks
 
 HEAD_YAW_ID = 13
+AX_CENTER_POSITION = 511
 
 AX_GOAL_POSITION = 30
+AX_MOVING_SPEED = 32
+AX_PRESENT_POSITION = 36
 AX_12_VOLTAGE = 42
 AX_12_TEMPERATURE = 43
 
@@ -64,6 +66,7 @@ class Roz:
         self.controller = BioloidController()
         self.ikEngine = IKEngine()
         self.ikEngine.setController(self.controller)
+        self.setupHeadPosition()
         self.ikEngine.setupForWalk(self.standingPose)
         self.ikEngine.setTranTime(170)
         self.debug = False
@@ -74,12 +77,20 @@ class Roz:
         self.button = OneShotButton(BUTTON_PIN, False, 0)
         self.readSensors()
         self.shutdown = False
-        self.setupHeadPosition()
         self.watchdogServoId = 1
+        self.waitingForButtonState = State("waitingForButton", self.enterWaitingForButtonState, self.handleWaitingForButtonState, None)
+        self.waitingForNoButtonState = State("waitingForNoButton", self.enterWaitingForNoButtonState, self.handleWaitingForNoButtonState, None)
+        self.walkingState = State("walking", self.enterWalkingState, self.handleWalkingState, None)
+        self.obstacleAvoidanceState = State("obstacleAvoidance", self.enterObstacleAvoidanceState, self.handleObstacleAvoidanceState, None)
+        self.shutdownState = State("shutdown", self.enterShutdownState, None, None)
+        self.mainStateMachine = FiniteStateMachine(self.waitingForButtonState)
+        self.heartbeat = HeartbeatLED(RED_LED)
+        self.watchdogState = State("watchdog", None, self.handleWatchdogState, None)
+        self.watchdogWaitState = State("watchdog-wait", None, self.handleWatchdogWaitState, None)
+        self.watchdogStateMachine = FiniteStateMachine(self.watchdogState)
 
     def setupHeadPosition(self):
-        position = 511
-        self.controller.writeData(HEAD_YAW_ID, AX_GOAL_POSITION, struct.pack('<H', position))
+        self.controller.slowMoveServoTo(HEAD_YAW_ID, AX_CENTER_POSITION)
 
     def isButtonPushed(self):
         return self.button.isPressed()
@@ -106,6 +117,14 @@ class Roz:
         self.frontRangeDistance = self.frontRangeFinder.getDistance()
         self.leftRangeDistance = self.leftRangeFinder.getDistance()
         self.rightRangeDistance = self.rightRangeFinder.getDistance()
+
+    def update(self):
+        self.readSensors()
+        self.mainStateMachine.update()
+        self.ikEngine.handleIK()
+        self.watchdogStateMachine.update()
+        self.heartbeat.update()
+
 
     #=====================================
     #
@@ -225,29 +244,10 @@ class Roz:
 #=====================================
 
 roz = Roz()
-voltage = roz.readBatteryVoltage()
-roz.log ('Battery: %3.1f volts' % voltage)
-
-roz.waitingForButtonState = State("waitingForButton", roz.enterWaitingForButtonState, roz.handleWaitingForButtonState, None)
-roz.waitingForNoButtonState = State("waitingForNoButton", roz.enterWaitingForNoButtonState, roz.handleWaitingForNoButtonState, None)
-roz.walkingState = State("walking", roz.enterWalkingState, roz.handleWalkingState, None)
-roz.obstacleAvoidanceState = State("obstacleAvoidance", roz.enterObstacleAvoidanceState, roz.handleObstacleAvoidanceState, None)
-roz.shutdownState = State("shutdown", roz.enterShutdownState, None, None)
-roz.mainStateMachine = FiniteStateMachine(roz.waitingForButtonState)
-
-roz.heartbeat = HeartbeatLED(RED_LED)
-
-roz.watchdogState = State("watchdog", None, roz.handleWatchdogState, None)
-roz.watchdogWaitState = State("watchdog-wait", None, roz.handleWatchdogWaitState, None)
-roz.watchdogStateMachine = FiniteStateMachine(roz.watchdogState)
+roz.log ('Battery: %3.1f volts' % roz.readBatteryVoltage())
 
 while not roz.shutdown:
-    roz.readSensors()
-    roz.mainStateMachine.update()
-    roz.ikEngine.handleIK()
-    roz.watchdogStateMachine.update()
-    roz.heartbeat.update()
+    roz.update()
 
 roz.log ('Shutdown')
 roz.logger.close()
-

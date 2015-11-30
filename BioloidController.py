@@ -8,9 +8,13 @@ BIOLOID_SHIFT = 3
 BIOLOID_FRAME_LENGTH = 33
 
 AX_GOAL_POSITION = 30
+AX_MOVING_SPEED = 32
+AX_PRESENT_POSITION = 36
 AX_READ_DATA = 2
 AX_WRITE_DATA = 3
 AX_SYNC_WRITE = 131
+
+SLOW_SERVO_MOVE_SPEED = 150
 
 class BioloidController:
 
@@ -45,18 +49,35 @@ class BioloidController:
             #print ("SYNC_WRITE ", self.id[i], " - ", int(self.pose[i]))
         self.serialPort.sync_write(self.id, AX_GOAL_POSITION, values)
 
+    def slowMoveServoTo(self, deviceId, targetPosition):
+        oldSpeed = self.readTwoByteRegister(deviceId, AX_MOVING_SPEED)
+        currentPosition = self.readTwoByteRegister(deviceId, AX_PRESENT_POSITION)
+        self.writeTwoByteRegister(deviceId, AX_MOVING_SPEED, SLOW_SERVO_MOVE_SPEED)
+        self.writeTwoByteRegister(deviceId, AX_GOAL_POSITION, targetPosition)
+        done = False
+        while abs(currentPosition - targetPosition) > 5:
+            currentPosition = self.readTwoByteRegister(deviceId, AX_PRESENT_POSITION)
+        self.writeTwoByteRegister(deviceId, AX_MOVING_SPEED, oldSpeed)
+
+
     def setPosition(self, deviceId, position):
-        self.writeData(deviceId, AX_GOAL_POSITION, struct.pack('<H', position))
+        self.writeTwoByteRegister(deviceId, AX_GOAL_POSITION, position)
 
     def writeData(self, deviceId, controlTableIndex, byteData):
         return self.serialPort.write(deviceId, controlTableIndex, byteData)
 
+    def writeTwoByteRegister(self, deviceId, controlTableIndex, value):
+        return self.writeData(deviceId, controlTableIndex, struct.pack('<H', value))
+
+    def writeOneByteRegister(self, deviceId, controlTableIndex, value):
+        return self.writeData(deviceId, controlTableIndex, struct.pack('B', value))
+
     def readTwoByteRegister(self, deviceId, controlTableIndex):
-        values = self.serialPort.read(deviceId, controlTableIndex, 2)
+        values = self.readData(deviceId, controlTableIndex, 2)
         return struct.unpack('<H', values)[0]
 
     def readOneByteRegister(self, deviceId, controlTableIndex):
-        values = self.serialPort.read(deviceId, controlTableIndex, 1)
+        values = self.readData(deviceId, controlTableIndex, 1)
         return struct.unpack('B', values)[0]
 
     def readData(self, deviceId, controlTableIndex, count):
