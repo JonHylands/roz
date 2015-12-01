@@ -118,7 +118,7 @@ class IKEngine:
                 # up, middle position
                 self.gait[leg][0] = 0      # x
                 self.gait[leg][1] = 0      # y
-                self.gait[leg][2] = -20   # z
+                self.gait[leg][2] = -self.liftHeight   # z
                 self.gait[leg][3] = 0      # r
             elif (self.order[leg]+1 == self.step) or (self.order[leg]-(self.stepsInCycle-1) == self.step):   # gaits in step -1
                 # leg down!

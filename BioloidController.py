@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from stm_uart_bus import UART_Bus
+from Support import Logger
 import pyb
 import struct
 
@@ -18,7 +19,7 @@ SLOW_SERVO_MOVE_SPEED = 150
 
 class BioloidController:
 
-    def __init__(self):
+    def __init__(self, useLogger = False):
         self.id = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
         self.pose = [512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512]
         self.nextPose = [512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512]
@@ -28,15 +29,19 @@ class BioloidController:
         self.servoCount = 12
         self.lastFrame = pyb.millis()
         self.serialPort = UART_Bus(1, 1000000, show_packets=False)
-
-    def setLogger(self, aLogger):
-        self.logger = aLogger
+        if useLogger:
+            self.logger = Logger('sync_log.txt', False)
+        else:
+            self.logger = None
 
     # Load a pose into nextPose
     def loadPose(self, poseArray):
         for i in range(self.servoCount):
             self.nextPose[i] = (poseArray[i]) # << BIOLOID_SHIFT)
             #print ('loadPose[', self.id[i], '] = ', self.nextPose[i])
+
+    def isLogging(self):
+        return self.logger is not None
 
     # read the current robot's pose
     def readPose(self):
@@ -47,12 +52,17 @@ class BioloidController:
 
     def writePose(self):
         values = []
-        #logValues = []
+        logging = self.isLogging()
+        if logging:
+            logValues = []
         for i in range(self.servoCount):
-            values.append(struct.pack('<H', int(self.pose[i])))
-            #logValues.append((self.id[i], int(self.pose[i])))
+            poseValue = int(self.pose[i])
+            values.append(struct.pack('<H', poseValue))
+            if logging:
+                logValues.append(poseValue)
         self.serialPort.sync_write(self.id, AX_GOAL_POSITION, values)
-        #self.logger.log("SYNC_WRITE: %s" % logValues)
+        if logging:
+            self.logger.log(logValues)
 
     def slowMoveServoTo(self, deviceId, targetPosition):
         oldSpeed = self.readTwoByteRegister(deviceId, AX_MOVING_SPEED)
@@ -64,6 +74,23 @@ class BioloidController:
             currentPosition = self.readTwoByteRegister(deviceId, AX_PRESENT_POSITION)
         self.writeTwoByteRegister(deviceId, AX_MOVING_SPEED, oldSpeed)
 
+    def rampServoTo(self, deviceId, targetPosition):
+        currentPosition = self.readTwoByteRegister(deviceId, AX_PRESENT_POSITION) # present position
+        if targetPosition > currentPosition:
+            stepDelta = 1
+            stepAccel = 2
+            comparison = lambda: targetPosition > (currentPosition + stepDelta)
+        else:
+            stepDelta = -1
+            stepAccel = -2
+            comparison = lambda: currentPosition > (targetPosition - stepDelta)
+        while comparison():
+            movePosition = currentPosition + stepDelta
+            stepDelta += stepAccel
+            self.setPosition(deviceId, movePosition)
+            currentPosition = self.readTwoByteRegister(deviceId, AX_PRESENT_POSITION) # present position
+            pyb.delay(25)
+        self.setPosition(deviceId, targetPosition)
 
     def setPosition(self, deviceId, position):
         self.writeTwoByteRegister(deviceId, AX_GOAL_POSITION, position)
@@ -125,7 +152,3 @@ class BioloidController:
         if complete <= 0:
             self.interpolating = False
         self.writePose()
-
-
-#============================================================
-

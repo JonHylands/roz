@@ -64,7 +64,6 @@ class Roz:
         self.logger = Logger('logfile.txt')
         self.standingPose = [450, 570, 600, 420, 550, 460, 570, 450, 420, 600, 460, 550]
         self.controller = BioloidController()
-        self.controller.setLogger(self.logger)
         self.ikEngine = IKEngine()
         self.ikEngine.setController(self.controller)
         self.ikEngine.setLogger(self.logger)
@@ -91,7 +90,7 @@ class Roz:
         self.watchdogStateMachine = FiniteStateMachine(self.watchdogState)
 
     def setupHeadPosition(self):
-        self.controller.slowMoveServoTo(HEAD_YAW_ID, AX_CENTER_POSITION)
+        self.controller.rampServoTo(HEAD_YAW_ID, AX_CENTER_POSITION)
 
     def isButtonPushed(self):
         return self.button.isPressed()

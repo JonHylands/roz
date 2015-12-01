@@ -18,8 +18,11 @@ class Logger:
     def timestamp(self):
         return pyb.millis() - self.startCount
 
-    def log(self, logString):
-        line = "%08d: %s\n" % (self.timestamp(), logString)
+    def log(self, logString, useTimestamp = True):
+        if useTimestamp:
+            line = "%08d: %s\n" % (self.timestamp(), logString)
+        else:
+            line = logString
         self.file.write(line)
         self.file.flush()
 
