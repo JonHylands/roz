@@ -16,10 +16,12 @@ FRONT_SENSOR_OBSTACLE = 30 # cm
 SIDE_SENSOR_OBSTACLE = 30
 
 FRONT_OBSTACLE_TURN_SPEED = 0.5
-SIDE_OBSTACLE_TURN_SPEED = 0.1
+SIDE_OBSTACLE_TURN_SPEED = 0.3
+FRONT_OBSTACLE_TURN_TIMEOUT = 5000
 
-FRONT_OBSTACLE_TURN_TIME = 2000
-MAX_FORWARD_SPEED = 180
+TRANSITION_TIME = 150
+MAX_FORWARD_SPEED = 160
+
 START_FORWARD_SPEED = (MAX_FORWARD_SPEED * 0.3)
 
 MINIMUM_VOLTAGE = 10.0
@@ -30,15 +32,15 @@ LEG_SERVO_COUNT = 12
 WATCHDOG_TIME_INTERVAL = 5000 # milliseconds between watchdog checks
 
 HEAD_YAW_ID = 13
-AX_CENTER_POSITION = 511
 
+AX_CENTER_POSITION = 511
 AX_GOAL_POSITION = 30
 AX_MOVING_SPEED = 32
 AX_PRESENT_POSITION = 36
 AX_12_VOLTAGE = 42
 AX_12_TEMPERATURE = 43
 
-FORWARD_ROT_Z = 0
+FORWARD_ROT_Z = 0 # we can use this to offset any tendency of the robot to turn while moving forwards
 
 RIGHT_RANGE_PIN = 'C1'
 LEFT_RANGE_PIN = 'A1'
@@ -69,7 +71,7 @@ class Roz:
         self.ikEngine.setLogger(self.logger)
         self.setupHeadPosition()
         self.ikEngine.setupForWalk(self.standingPose)
-        self.ikEngine.setTranTime(150)
+        self.ikEngine.setTranTime(TRANSITION_TIME)
         self.debug = False
         self.frontRangeFinder = RangeFinder(FRONT_RANGE_PIN, RANGE_MAX)
         self.leftRangeFinder = RangeFinder(LEFT_RANGE_PIN, RANGE_MAX)
@@ -184,11 +186,10 @@ class Roz:
     def enterObstacleAvoidanceState(self):
         self.log('Entering ObstacleAvoidanceState')
         self.ikEngine.travelX = 0
-        self.turnEndTime = pyb.millis() + FRONT_OBSTACLE_TURN_TIME
+        self.turnTimeoutTime = pyb.millis() + FRONT_OBSTACLE_TURN_TIMEOUT
         if (self.leftRangeDistance < SIDE_SENSOR_OBSTACLE) & (self.rightRangeDistance < SIDE_SENSOR_OBSTACLE):
             self.log('Obstacles on both sides')
             self.ikEngine.travelRotZ = -FRONT_OBSTACLE_TURN_SPEED
-            self.turnEndTime += FRONT_OBSTACLE_TURN_TIME
         elif self.leftRangeDistance < SIDE_SENSOR_OBSTACLE:
             self.log('Obstacle on left side')
             self.ikEngine.travelRotZ = -FRONT_OBSTACLE_TURN_SPEED
@@ -203,7 +204,9 @@ class Roz:
                 self.ikEngine.travelRotZ = FRONT_OBSTACLE_TURN_SPEED
 
     def handleObstacleAvoidanceState(self):
-        if pyb.millis() > self.turnEndTime:
+        if self.frontRangeDistance >= FRONT_SENSOR_OBSTACLE:
+            self.mainStateMachine.transitionTo(self.walkingState)
+        if pyb.millis() > self.turnTimeoutTime:
             self.mainStateMachine.transitionTo(self.walkingState)
         if self.isButtonPushed():
             self.mainStateMachine.transitionTo(self.shutdownState)

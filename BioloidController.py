@@ -28,7 +28,7 @@ class BioloidController:
         self.playing = False
         self.servoCount = 12
         self.lastFrame = pyb.millis()
-        self.serialPort = UART_Bus(1, 1000000, show_packets=False)
+        self.bus = UART_Bus(1, 1000000, show_packets=False)
         if useLogger:
             self.logger = Logger('sync_log.txt', False)
         else:
@@ -60,7 +60,7 @@ class BioloidController:
             values.append(struct.pack('<H', poseValue))
             if logging:
                 logValues.append(poseValue)
-        self.serialPort.sync_write(self.id, AX_GOAL_POSITION, values)
+        self.bus.sync_write(self.id, AX_GOAL_POSITION, values)
         if logging:
             self.logger.log(logValues)
 
@@ -96,7 +96,7 @@ class BioloidController:
         self.writeTwoByteRegister(deviceId, AX_GOAL_POSITION, position)
 
     def writeData(self, deviceId, controlTableIndex, byteData):
-        return self.serialPort.write(deviceId, controlTableIndex, byteData)
+        return self.bus.write(deviceId, controlTableIndex, byteData)
 
     def writeTwoByteRegister(self, deviceId, controlTableIndex, value):
         return self.writeData(deviceId, controlTableIndex, struct.pack('<H', value))
@@ -113,7 +113,7 @@ class BioloidController:
         return struct.unpack('B', values)[0]
 
     def readData(self, deviceId, controlTableIndex, count):
-        return self.serialPort.read(deviceId, controlTableIndex, count)
+        return self.bus.read(deviceId, controlTableIndex, count)
 
     def interpolateSetup(self, time):
         frames = (time / BIOLOID_FRAME_LENGTH) + 1
