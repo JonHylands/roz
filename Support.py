@@ -1,14 +1,13 @@
 
 import pyb
 
+
 #================================================
 #
 #       Class Logger
 #
 
 class Logger:
-
-
 
     def __init__(self, logFilename):
         self.file = open('/sd/%s' % logFilename, 'wt')
@@ -27,6 +26,7 @@ class Logger:
         self.file.flush()
 
     def close(self):
+        self.file.write("Logger Stop\n")
         self.file.close()
 
 

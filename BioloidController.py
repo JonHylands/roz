@@ -15,7 +15,7 @@ AX_READ_DATA = 2
 AX_WRITE_DATA = 3
 AX_SYNC_WRITE = 131
 
-SLOW_SERVO_MOVE_SPEED = 150
+SLOW_SERVO_MOVE_SPEED = 100
 
 class BioloidController:
 
@@ -64,15 +64,27 @@ class BioloidController:
         if logging:
             self.logger.log(logValues)
 
-    def slowMoveServoTo(self, deviceId, targetPosition):
+    def slowMoveServoTo(self, deviceId, targetPosition, speed = SLOW_SERVO_MOVE_SPEED, scanFunction = None):
         oldSpeed = self.readTwoByteRegister(deviceId, AX_MOVING_SPEED)
         currentPosition = self.readTwoByteRegister(deviceId, AX_PRESENT_POSITION)
-        self.writeTwoByteRegister(deviceId, AX_MOVING_SPEED, SLOW_SERVO_MOVE_SPEED)
+        self.writeTwoByteRegister(deviceId, AX_MOVING_SPEED, speed)
         self.writeTwoByteRegister(deviceId, AX_GOAL_POSITION, targetPosition)
         done = False
+        scanCount = 0
+        lastPosition = 0
+        startTime = pyb.millis()
         while abs(currentPosition - targetPosition) > 5:
             currentPosition = self.readTwoByteRegister(deviceId, AX_PRESENT_POSITION)
+            if scanFunction is not None:
+                if currentPosition != lastPosition:
+                    scanCount += 1
+                    lastPosition = currentPosition
+                    scanFunction(currentPosition, scanCount)
+            pyb.delay(1)
         self.writeTwoByteRegister(deviceId, AX_MOVING_SPEED, oldSpeed)
+        if scanFunction is not None:
+            scanFunction(targetPosition, scanCount + 1)
+        print("Elapsed Time: %d" % (pyb.millis() - startTime))
 
     def rampServoTo(self, deviceId, targetPosition):
         currentPosition = self.readTwoByteRegister(deviceId, AX_PRESENT_POSITION) # present position

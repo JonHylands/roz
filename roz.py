@@ -18,6 +18,7 @@ SIDE_SENSOR_OBSTACLE = 30
 FRONT_OBSTACLE_TURN_SPEED = 0.5
 SIDE_OBSTACLE_TURN_SPEED = 0.3
 FRONT_OBSTACLE_TURN_TIMEOUT = 5000
+FRONT_OBSTACLE_TURN_CONTINUE_TIMEOUT = 500
 
 TRANSITION_TIME = 150
 MAX_FORWARD_SPEED = 160
@@ -84,6 +85,7 @@ class Roz:
         self.waitingForNoButtonState = State("waitingForNoButton", self.enterWaitingForNoButtonState, self.handleWaitingForNoButtonState, None)
         self.walkingState = State("walking", self.enterWalkingState, self.handleWalkingState, None)
         self.obstacleAvoidanceState = State("obstacleAvoidance", self.enterObstacleAvoidanceState, self.handleObstacleAvoidanceState, None)
+        self.obstacleAvoidanceContinueState = State("obstacleAvoidanceContinue", self.enterObstacleAvoidanceContinueState, self.handleObstacleAvoidanceContinueState, None)
         self.shutdownState = State("shutdown", self.enterShutdownState, None, None)
         self.mainStateMachine = FiniteStateMachine(self.waitingForButtonState)
         self.heartbeat = HeartbeatLED(RED_LED)
@@ -205,7 +207,22 @@ class Roz:
 
     def handleObstacleAvoidanceState(self):
         if self.frontRangeDistance >= FRONT_SENSOR_OBSTACLE:
+            self.mainStateMachine.transitionTo(self.obstacleAvoidanceContinueState)
+        if pyb.millis() > self.turnTimeoutTime:
             self.mainStateMachine.transitionTo(self.walkingState)
+        if self.isButtonPushed():
+            self.mainStateMachine.transitionTo(self.shutdownState)
+
+    #=====================================
+    #
+    #       Obstacle Avoidance Continue State
+    #
+
+    def enterObstacleAvoidanceContinueState(self):
+        self.log('Entering ObstacleAvoidanceContinueState')
+        self.turnTimeoutTime = pyb.millis() + FRONT_OBSTACLE_TURN_CONTINUE_TIMEOUT
+
+    def handleObstacleAvoidanceContinueState(self):
         if pyb.millis() > self.turnTimeoutTime:
             self.mainStateMachine.transitionTo(self.walkingState)
         if self.isButtonPushed():
