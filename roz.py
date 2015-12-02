@@ -10,10 +10,12 @@ import pyb
 from BioloidController import BioloidController
 from FSM import State, FiniteStateMachine
 from Nuke import IKEngine
-from Support import RangeFinder, HeartbeatLED, OneShotButton, Logger
+from Support import RangeFinder, HeartbeatLED, OneShotButton, Logger, arduino_map
+import math
 
 FRONT_SENSOR_OBSTACLE = 30 # cm
 SIDE_SENSOR_OBSTACLE = 30
+SIDE_SENSOR_CLEAR_OBSTACLE = 45
 
 FRONT_OBSTACLE_TURN_SPEED = 0.5
 SIDE_OBSTACLE_TURN_SPEED = 0.3
@@ -33,8 +35,13 @@ LEG_SERVO_COUNT = 12
 WATCHDOG_TIME_INTERVAL = 5000 # milliseconds between watchdog checks
 
 HEAD_YAW_ID = 13
+HEAD_YAW_CENTER = 511
+HEAD_YAW_MIN = 306
+HEAD_YAW_MAX = 717
 
-AX_CENTER_POSITION = 511
+AX_1_DEGREE_INCREMENT = 3.41
+AX_5_DEGREE_INCREMENT = AX_1_DEGREE_INCREMENT * 5
+
 AX_GOAL_POSITION = 30
 AX_MOVING_SPEED = 32
 AX_PRESENT_POSITION = 36
@@ -85,6 +92,7 @@ class Roz:
         self.waitingForNoButtonState = State("waitingForNoButton", self.enterWaitingForNoButtonState, self.handleWaitingForNoButtonState, None)
         self.walkingState = State("walking", self.enterWalkingState, self.handleWalkingState, None)
         self.obstacleAvoidanceState = State("obstacleAvoidance", self.enterObstacleAvoidanceState, self.handleObstacleAvoidanceState, None)
+        self.obstacleAvoidanceScanState = State("obstacleAvoidanceScan", self.enterObstacleAvoidanceScanState, self.handleObstacleAvoidanceScanState, None)
         self.obstacleAvoidanceContinueState = State("obstacleAvoidanceContinue", self.enterObstacleAvoidanceContinueState, self.handleObstacleAvoidanceContinueState, None)
         self.shutdownState = State("shutdown", self.enterShutdownState, None, None)
         self.mainStateMachine = FiniteStateMachine(self.waitingForButtonState)
@@ -94,7 +102,7 @@ class Roz:
         self.watchdogStateMachine = FiniteStateMachine(self.watchdogState)
 
     def setupHeadPosition(self):
-        self.controller.rampServoTo(HEAD_YAW_ID, AX_CENTER_POSITION)
+        self.controller.rampServoTo(HEAD_YAW_ID, HEAD_YAW_CENTER)
 
     def isButtonPushed(self):
         return self.button.isPressed()
@@ -113,6 +121,53 @@ class Roz:
         if temperature > MAXIMUM_TEMPERATURE:
             self.log ('Servo %d temperature too high: %d degrees C' % (servoId, temperature))
             self.mainStateMachine.transitionTo(self.shutdownState)
+
+    def mapObstacleSpace(self):
+        # do a scan, return the angle (0-center-relative) to the largest chunk of empty space
+        # if no empty space is found, return None
+        self.controller.rampServoTo(HEAD_YAW_ID, HEAD_YAW_MIN)
+        pyb.delay(250) # pause for the movement to settle
+        values = []
+        for position in range(HEAD_YAW_MIN * 100, HEAD_YAW_MAX * 100, int(AX_5_DEGREE_INCREMENT * 100)):
+            start = pyb.millis()
+            end = start + 40
+            i_pos = int(position / 100)
+            self.controller.setPosition(HEAD_YAW_ID, i_pos)
+            values.append(self.frontRangeFinder.getDistance())
+            pyb.delay(max(0, end - pyb.millis())) # we want each loop iteration to take 40ms
+
+        self.controller.rampServoTo(HEAD_YAW_ID, HEAD_YAW_CENTER)
+        groups = []
+        lastIndex = None
+        startGroup = 0
+        for (index, value) in enumerate(values):
+            if value == 50:
+                if lastIndex == index - 1:
+                    startGroup = lastIndex
+                if lastIndex is None:
+                    lastIndex = index
+            else:
+                if lastIndex is not None:
+                    groups.append((startGroup, index - 1))
+                lastIndex = None
+        if values[-1] == 50:
+            groups.append((startGroup, len(values) - 1))
+
+        if len(groups) == 0:
+            return None
+
+        maxLength = 0
+        maxGroup = None
+        for pairs in groups:
+            groupLength = pairs[1] - pairs[0] + 1
+            if groupLength > maxLength:
+                maxGroup = pairs
+                maxLength = groupLength
+
+        center = (maxGroup[0] + maxGroup[1]) // 2
+        centerPosition = arduino_map(center, 0, len(values), 306, 717)
+        centerAngle = arduino_map(centerPosition, 0, 1023, 0, 300)
+        return centerAngle
 
     def log(self, logString):
         self.logger.log(logString)
@@ -172,8 +227,10 @@ class Roz:
         if self.frontRangeDistance < FRONT_SENSOR_OBSTACLE:
             self.mainStateMachine.transitionTo (self.obstacleAvoidanceState)
         elif self.rightRangeDistance < SIDE_SENSOR_OBSTACLE:
+            self.log("Obstacle on right side, angling left")
             self.ikEngine.travelRotZ = SIDE_OBSTACLE_TURN_SPEED
         elif self.leftRangeDistance < SIDE_SENSOR_OBSTACLE:
+            self.log("Obstacle on left side, angling right")
             self.ikEngine.travelRotZ = -SIDE_OBSTACLE_TURN_SPEED
         else:
             self.ikEngine.travelRotZ = FORWARD_ROT_Z
@@ -189,26 +246,67 @@ class Roz:
         self.log('Entering ObstacleAvoidanceState')
         self.ikEngine.travelX = 0
         self.turnTimeoutTime = pyb.millis() + FRONT_OBSTACLE_TURN_TIMEOUT
-        if (self.leftRangeDistance < SIDE_SENSOR_OBSTACLE) & (self.rightRangeDistance < SIDE_SENSOR_OBSTACLE):
-            self.log('Obstacles on both sides')
-            self.ikEngine.travelRotZ = -FRONT_OBSTACLE_TURN_SPEED
-        elif self.leftRangeDistance < SIDE_SENSOR_OBSTACLE:
-            self.log('Obstacle on left side')
-            self.ikEngine.travelRotZ = -FRONT_OBSTACLE_TURN_SPEED
-        elif self.rightRangeDistance < SIDE_SENSOR_OBSTACLE:
-            self.log('Obstacle on right side')
-            self.ikEngine.travelRotZ = FRONT_OBSTACLE_TURN_SPEED
-        else: #nothing on either side, so pick a side at random
-            self.log('Only front obstacle')
+        if (self.leftRangeDistance < SIDE_SENSOR_CLEAR_OBSTACLE) & (self.rightRangeDistance < SIDE_SENSOR_CLEAR_OBSTACLE):
+            # stuff on both sides, pick a direction at random to turn
             if pyb.rng() & 1 == 0:
+                self.log('Obstacles on both sides, turning right')
                 self.ikEngine.travelRotZ = -FRONT_OBSTACLE_TURN_SPEED
             else:
+                self.log('Obstacles on both sides, turning left')
+                self.ikEngine.travelRotZ = FRONT_OBSTACLE_TURN_SPEED
+        elif self.leftRangeDistance < SIDE_SENSOR_CLEAR_OBSTACLE:
+            self.log('Obstacle on left side, turning right')
+            self.ikEngine.travelRotZ = -FRONT_OBSTACLE_TURN_SPEED
+        elif self.rightRangeDistance < SIDE_SENSOR_CLEAR_OBSTACLE:
+            self.log('Obstacle on right side, turning left')
+            self.ikEngine.travelRotZ = FRONT_OBSTACLE_TURN_SPEED
+        else: #nothing on either side, so pick a side at random
+            if pyb.rng() & 1 == 0:
+                self.log('Only front obstacle, turning right')
+                self.ikEngine.travelRotZ = -FRONT_OBSTACLE_TURN_SPEED
+            else:
+                self.log('Only front obstacle, turning left')
                 self.ikEngine.travelRotZ = FRONT_OBSTACLE_TURN_SPEED
 
     def handleObstacleAvoidanceState(self):
         if self.frontRangeDistance >= FRONT_SENSOR_OBSTACLE:
             self.mainStateMachine.transitionTo(self.obstacleAvoidanceContinueState)
         if pyb.millis() > self.turnTimeoutTime:
+            self.log("Obstacle turn timeout, do scan")
+            self.mainStateMachine.transitionTo(self.obstacleAvoidanceScanState)
+        if self.isButtonPushed():
+            self.mainStateMachine.transitionTo(self.shutdownState)
+
+    #=====================================
+    #
+    #       Obstacle Avoidance Scan State
+    #
+
+    def enterObstacleAvoidanceScanState(self):
+        # this function shuts down the FSM for a second or two
+        self.log('Entering ObstacleAvoidanceScanState')
+        self.ikEngine.travelX = 0
+        self.ikEngine.travelRotZ = 0
+        self.ikEngine.setupForWalk(self.standingPose)
+        self.ikEngine.bodyPosX = -50 # move the body forwards so the head clears the legs
+        self.ikEngine.setupForWalk(self.standingPose)
+        self.ikEngine.bodyPosX = 0
+        openAngle = self.mapObstacleSpace()
+        if openAngle is None:
+            self.obstacleScanTurnTime = pyb.millis()
+        else:
+            openAngleRadians = math.radians(openAngle)
+            self.obstacleScanTurnTime = pyb.millis() + int((abs(openAngleRadians) / FRONT_OBSTACLE_TURN_SPEED) * 1000)
+            if openAngle > 0:
+                self.log("Found opening at angle %d - turning left" % openAngle)
+                self.ikEngine.travelRotZ = FRONT_OBSTACLE_TURN_SPEED
+            else:
+                self.log("Found opening at angle %d - turning right" % openAngle)
+                self.ikEngine.travelRotZ = -FRONT_OBSTACLE_TURN_SPEED
+
+    def handleObstacleAvoidanceScanState(self):
+        if pyb.millis() >= self.obstacleScanTurnTime:
+            self.log("Obstacle scan turn done, back to walking")
             self.mainStateMachine.transitionTo(self.walkingState)
         if self.isButtonPushed():
             self.mainStateMachine.transitionTo(self.shutdownState)
@@ -224,6 +322,7 @@ class Roz:
 
     def handleObstacleAvoidanceContinueState(self):
         if pyb.millis() > self.turnTimeoutTime:
+            self.log("Done turning, back to walking")
             self.mainStateMachine.transitionTo(self.walkingState)
         if self.isButtonPushed():
             self.mainStateMachine.transitionTo(self.shutdownState)
@@ -238,7 +337,6 @@ class Roz:
         self.ikEngine.travelRotZ = 0
         self.heartbeat.shutdown()
         self.shutdown = True
-
 
     #=====================================
     #
