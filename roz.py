@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
-"""
-  Roz - a Bioloid Quad Walker
+#================================================
+#
+#   Roz - a Bioloid Quad Walker
+#
 
-"""
 
 import pyb
 
@@ -63,6 +64,7 @@ GREEN_LED = 2
 YELLOW_LED = 3
 BLUE_LED = 4
 
+
 #================================================
 #
 #       Class Roz
@@ -71,6 +73,13 @@ BLUE_LED = 4
 class Roz:
 
     def __init__(self):
+        self.button = OneShotButton(BUTTON_PIN, False, 0)
+        if self.button.isPressed():
+            self.initialRun = "motionDemo"
+            print("Running Motion Demo")
+        else:
+            self.initialRun = "walking"
+            print("Running Walking")
         self.logger = Logger('logfile.txt')
         self.standingPose = [450, 570, 600, 420, 550, 460, 570, 450, 420, 600, 460, 550]
         self.controller = BioloidController()
@@ -84,19 +93,22 @@ class Roz:
         self.frontRangeFinder = RangeFinder(FRONT_RANGE_PIN, RANGE_MAX)
         self.leftRangeFinder = RangeFinder(LEFT_RANGE_PIN, RANGE_MAX)
         self.rightRangeFinder = RangeFinder(RIGHT_RANGE_PIN, RANGE_MAX)
-        self.button = OneShotButton(BUTTON_PIN, False, 0)
         self.readSensors()
         self.shutdown = False
         self.watchdogServoId = 1
+        self.heartbeat = HeartbeatLED(RED_LED)
+
         self.waitingForButtonState = State("waitingForButton", self.enterWaitingForButtonState, self.handleWaitingForButtonState, None)
         self.waitingForNoButtonState = State("waitingForNoButton", self.enterWaitingForNoButtonState, self.handleWaitingForNoButtonState, None)
         self.walkingState = State("walking", self.enterWalkingState, self.handleWalkingState, None)
         self.obstacleAvoidanceState = State("obstacleAvoidance", self.enterObstacleAvoidanceState, self.handleObstacleAvoidanceState, None)
         self.obstacleAvoidanceScanState = State("obstacleAvoidanceScan", self.enterObstacleAvoidanceScanState, self.handleObstacleAvoidanceScanState, None)
         self.obstacleAvoidanceContinueState = State("obstacleAvoidanceContinue", self.enterObstacleAvoidanceContinueState, self.handleObstacleAvoidanceContinueState, None)
+        self.motionDemoState = State("motionDemo", self.enterMotionDemoState, self.handleMotionDemoState, None)
+        self.motionDemoXYState = State("motionXYDemo", self.enterMotionDemoXYState, self.handleMotionDemoXYState, None)
         self.shutdownState = State("shutdown", self.enterShutdownState, None, None)
         self.mainStateMachine = FiniteStateMachine(self.waitingForButtonState)
-        self.heartbeat = HeartbeatLED(RED_LED)
+
         self.watchdogState = State("watchdog", None, self.handleWatchdogState, None)
         self.watchdogWaitState = State("watchdog-wait", None, self.handleWatchdogWaitState, None)
         self.watchdogStateMachine = FiniteStateMachine(self.watchdogState)
@@ -184,7 +196,6 @@ class Roz:
         self.watchdogStateMachine.update()
         self.heartbeat.update()
 
-
     #=====================================
     #
     #       Waiting for Button State
@@ -209,7 +220,10 @@ class Roz:
 
     def handleWaitingForNoButtonState(self):
         if not self.isButtonPushed():
-            self.mainStateMachine.transitionTo(self.walkingState)
+            if self.initialRun == "motionDemo":
+                self.mainStateMachine.transitionTo(self.motionDemoState)
+            else:
+                self.mainStateMachine.transitionTo(self.walkingState)
 
     #=====================================
     #
@@ -220,20 +234,27 @@ class Roz:
         self.log('Entering walking state')
         self.ikEngine.travelX = START_FORWARD_SPEED
         self.ikEngine.travelRotZ = FORWARD_ROT_Z
+        self.anglingFlag = None
 
     def handleWalkingState(self):
         if self.ikEngine.travelX < MAX_FORWARD_SPEED:
             self.ikEngine.travelX += 2
         if self.frontRangeDistance < FRONT_SENSOR_OBSTACLE:
+            self.anglingFlag = None
             self.mainStateMachine.transitionTo (self.obstacleAvoidanceState)
         elif self.rightRangeDistance < SIDE_SENSOR_OBSTACLE:
-            self.log("Obstacle on right side, angling left")
+            if self.anglingFlag != "left":
+                self.log("Obstacle on right side, angling left")
+            self.anglingFlag = "left"
             self.ikEngine.travelRotZ = SIDE_OBSTACLE_TURN_SPEED
         elif self.leftRangeDistance < SIDE_SENSOR_OBSTACLE:
-            self.log("Obstacle on left side, angling right")
+            if self.anglingFlag != "right":
+                self.log("Obstacle on left side, angling right")
+            self.anglingFlag = "right"
             self.ikEngine.travelRotZ = -SIDE_OBSTACLE_TURN_SPEED
         else:
             self.ikEngine.travelRotZ = FORWARD_ROT_Z
+            self.anglingFlag = None
         if self.isButtonPushed():
             self.mainStateMachine.transitionTo(self.shutdownState)
 
@@ -290,11 +311,18 @@ class Roz:
         self.ikEngine.setupForWalk(self.standingPose)
         self.ikEngine.bodyPosX = -50 # move the body forwards so the head clears the legs
         self.ikEngine.setupForWalk(self.standingPose)
-        self.ikEngine.bodyPosX = 0
+        self.ikEngine.bodyPosX = 0 # it will move back the next time the IK engine runs
+        blue = pyb.LED(BLUE_LED)
+        blue.on()
         openAngle = self.mapObstacleSpace()
+        blue.off()
         if openAngle is None:
+            #we didn't find any open areas, so switch to walking mode which will re-trigger obstacle mode again
+            self.log("No openings found from scan")
             self.obstacleScanTurnTime = pyb.millis()
         else:
+            # The IK Engine uses radians/s for rotation rate, so figure out the delta in radians and thus given a fixed
+            # rotation rate figure out how long we need to turn in order to end up pointing in that direction
             openAngleRadians = math.radians(openAngle)
             self.obstacleScanTurnTime = pyb.millis() + int((abs(openAngleRadians) / FRONT_OBSTACLE_TURN_SPEED) * 1000)
             if openAngle > 0:
@@ -324,6 +352,49 @@ class Roz:
         if pyb.millis() > self.turnTimeoutTime:
             self.log("Done turning, back to walking")
             self.mainStateMachine.transitionTo(self.walkingState)
+        if self.isButtonPushed():
+            self.mainStateMachine.transitionTo(self.shutdownState)
+
+    #=====================================
+    #
+    #       Motion Demo State
+    #
+
+    def enterMotionDemoState(self):
+        self.log('Entering MotionDemoState')
+
+    def handleMotionDemoState(self):
+        if self.watchdogStateMachine.getCurrentStateMillis() > 1000:
+            self.mainStateMachine.transitionTo(self.motionDemoXYState)
+        if self.isButtonPushed():
+            self.mainStateMachine.transitionTo(self.shutdownState)
+
+    #=====================================
+    #
+    #       Motion Demo XY State
+    #
+
+    def enterMotionDemoXYState(self):
+        self.log('Entering MotionDemoXYState')
+        self.motionDemoAngle = 0 # use a circular motion in X & Y
+        self.motionDemoCycleCount = 0
+        self.ikEngine.setTranTime(100)
+
+    def handleMotionDemoXYState(self):
+        if not self.controller.interpolating:
+            self.log("handleMotionDemoXYState")
+            radianAngle = math.radians(self.motionDemoAngle)
+            x = math.cos(radianAngle)
+            y = math.sin(radianAngle)
+            self.ikEngine.bodyPosX = 50 * x
+            self.ikEngine.bodyPosY = 50 * y
+            self.motionDemoAngle += 6
+            if self.motionDemoAngle >= 360:
+                self.motionDemoAngle = 0
+                self.motionDemoCycleCount += 1
+        if self.motionDemoCycleCount >= 2:
+            self.mainStateMachine.transitionTo(self.shutdownState)
+            #self.mainStateMachine.transitionTo(self.motionDemoRollState)
         if self.isButtonPushed():
             self.mainStateMachine.transitionTo(self.shutdownState)
 
