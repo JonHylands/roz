@@ -5,7 +5,6 @@ from Support import Logger
 import pyb
 import struct
 
-BIOLOID_SHIFT = 3
 BIOLOID_FRAME_LENGTH = 33
 
 AX_GOAL_POSITION = 30
@@ -30,7 +29,7 @@ class BioloidController:
         self.lastFrame = pyb.millis()
         self.bus = UART_Bus(1, 1000000, show_packets=False)
         if useLogger:
-            self.logger = Logger('sync_log.txt', False)
+            self.logger = Logger('sync_log.txt')
         else:
             self.logger = None
 
