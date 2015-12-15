@@ -225,8 +225,10 @@ class Robot:
             servo = Servo(servoId)
             servo.setResolution(attributes[3])
             joint = Joint(name, servo)
+            # note that the neutral angle is specified in servo space (although in radians)
             joint.neutralAngle = servo.positionToAngle(attributes[4])
             joint.signFactor = attributes[5]
+            # whereas min and max angle are specified relative to the neutral
             joint.minAngle = joint.positionToAngle(attributes[1])
             joint.maxAngle = joint.positionToAngle(attributes[2])
             joints.append(joint)

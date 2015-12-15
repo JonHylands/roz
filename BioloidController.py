@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 from stm_uart_bus import UART_Bus
+from bus import BusError
+from packet import ErrorCode
 from Support import Logger
 import pyb
 import struct
@@ -107,7 +109,13 @@ class BioloidController:
         self.writeTwoByteRegister(deviceId, AX_GOAL_POSITION, position)
 
     def writeData(self, deviceId, controlTableIndex, byteData):
-        return self.bus.write(deviceId, controlTableIndex, byteData)
+        try:
+            result = self.bus.write(deviceId, controlTableIndex, byteData)
+        except BusError:
+            if BusError.get_error_code() == ErrorCode.CHECKSUM:
+                return self.bus.write(deviceId, controlTableIndex, byteData)
+            raise
+        return result
 
     def writeTwoByteRegister(self, deviceId, controlTableIndex, value):
         return self.writeData(deviceId, controlTableIndex, struct.pack('<H', value))
@@ -124,7 +132,13 @@ class BioloidController:
         return struct.unpack('B', values)[0]
 
     def readData(self, deviceId, controlTableIndex, count):
-        return self.bus.read(deviceId, controlTableIndex, count)
+        try:
+            result = self.bus.read(deviceId, controlTableIndex, count)
+        except BusError:
+            if BusError.get_error_code() == ErrorCode.CHECKSUM:
+                return self.bus.read(deviceId, controlTableIndex, count)
+            raise
+        return result
 
     def interpolateSetup(self, time):
         frames = (time / BIOLOID_FRAME_LENGTH) + 1
