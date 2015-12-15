@@ -37,10 +37,8 @@ def radToServo(rads, resolution = 1024):
 
 
 class IKEngine:
-    def __init__(self, debug=False, gaitGen = None):
+    def __init__(self, debug=False):
         self.debug = debug    # do we print debug messages or not?
-        if gaitGen is None:
-            self.gaitGen = self.defaultGait  # any gait generation?
 
         #===========================
         #
@@ -61,6 +59,7 @@ class IKEngine:
         #===========================
 
         # Used for gait generation, holds the offsets for each leg
+        self.gaitGen = self.defaultGait
         self.gait = {}
         self.gait["RF_GAIT"] = [0,0,0,0]
         self.gait["LF_GAIT"] = [0,0,0,0]
@@ -72,8 +71,7 @@ class IKEngine:
         # transitionTime is the # of milliseconds to transition from one gait position to the next
         # we recalculate IK every transitionTime ms, and then interpolate to move all the servos from
         # their current positions to the newly calculated positions over this amount of time
-        self.transitionTime = 175
-        self.cycleTime = (self.stepsInCycle * self.transitionTime) / 1000.0
+        self.setTransitionTime(150)
 
         self.COXA = 0
         self.FEMUR = 1
@@ -141,8 +139,9 @@ class IKEngine:
     def setLogger(self, aLogger):
         self.logger = aLogger
 
-    def setTranTime(self, newTranTime):
+    def setTransitionTime(self, newTranTime):
         self.transitionTime = newTranTime
+        self.cycleTime = (self.stepsInCycle * self.transitionTime) / 1000.0
 
     def setNextPose(self, servo, pos):
         self.controller.nextPose[servo - 1] = pos
@@ -170,17 +169,22 @@ class IKEngine:
                 self.gait[leg][3] = self.gait[leg][3] - self.travelRotZ / self.pushSteps
         return self.gait[leg]
 
-    def setupForWalk(self, pose):
-        # Run IK while interpolating from the current pose to the given one
-        self.controller.readPose()
-        self.controller.loadPose(pose)
+    def standingGait(self, leg):
+        # This is a fake gait, that basically specifies a standing pose
+        return [0, 0, 0, 0]
+
+    def setupForWalk(self):
+        # Run IK while interpolating from the current pose to the default standing pose
         oldTransitionTime = self.transitionTime
         self.transitionTime = 1000
+        self.gaitGen = self.standingGait
+        self.controller.readPose()
         self.handleIK()
         while self.controller.interpolating:
             self.handleIK()
             pyb.delay(3) # milliseconds
         self.transitionTime = oldTransitionTime
+        self.gaitGen = self.defaultGait
 
     def handleIK(self):
         if not self.controller.interpolating:

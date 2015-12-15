@@ -111,8 +111,9 @@ class BioloidController:
     def writeData(self, deviceId, controlTableIndex, byteData):
         try:
             result = self.bus.write(deviceId, controlTableIndex, byteData)
-        except BusError:
-            if BusError.get_error_code() == ErrorCode.CHECKSUM:
+        except BusError as ex:
+            if ex.get_error_code() == ErrorCode.CHECKSUM:
+                print ("CHECKSUM Error - retrying...")
                 return self.bus.write(deviceId, controlTableIndex, byteData)
             raise
         return result
@@ -134,8 +135,9 @@ class BioloidController:
     def readData(self, deviceId, controlTableIndex, count):
         try:
             result = self.bus.read(deviceId, controlTableIndex, count)
-        except BusError:
-            if BusError.get_error_code() == ErrorCode.CHECKSUM:
+        except BusError as ex:
+            if ex.get_error_code() == ErrorCode.CHECKSUM:
+                print ("CHECKSUM Error - retrying...")
                 return self.bus.read(deviceId, controlTableIndex, count)
             raise
         return result
