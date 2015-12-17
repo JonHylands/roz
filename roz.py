@@ -45,11 +45,14 @@ TAIL_YAW_CENTER = 511
 AX_1_DEGREE_INCREMENT = 3.41
 AX_5_DEGREE_INCREMENT = AX_1_DEGREE_INCREMENT * 5
 
+AX_CW_COMPLIANCE_MARGIN = 26
+AX_CCW_COMPLIANCE_MARGIN = 27
 AX_GOAL_POSITION = 30
 AX_MOVING_SPEED = 32
 AX_PRESENT_POSITION = 36
 AX_12_VOLTAGE = 42
 AX_12_TEMPERATURE = 43
+AX_PUNCH = 48
 
 FORWARD_ROT_Z = 0  # we can use this to offset any tendency of the robot to turn while moving forwards
 
@@ -83,6 +86,7 @@ class Roz:
             print("Running Walking")
         self.logger = Logger('logfile.txt')
         self.controller = BioloidController()
+        self.setupServos()
         self.ikEngine = IKEngine()
         self.ikEngine.setController(self.controller)
         self.ikEngine.setLogger(self.logger)
@@ -112,6 +116,12 @@ class Roz:
         self.watchdogState = State("watchdog", None, self.handleWatchdogState, None)
         self.watchdogWaitState = State("watchdog-wait", None, self.handleWatchdogWaitState, None)
         self.watchdogStateMachine = FiniteStateMachine(self.watchdogState)
+
+    def setupServos(self):
+        for i in range(1, 13):
+            # self.controller.writeTwoByteRegister(i, AX_PUNCH, 200)
+            self.controller.writeOneByteRegister(i, AX_CW_COMPLIANCE_MARGIN, 2)
+            self.controller.writeOneByteRegister(i, AX_CCW_COMPLIANCE_MARGIN, 2)
 
     def setupHeadPosition(self):
         self.controller.rampServoTo(HEAD_YAW_ID, HEAD_YAW_CENTER)
