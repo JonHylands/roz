@@ -35,8 +35,12 @@ class ObjectExplorer:
         if type(target) is list:
             for index, data in enumerate(target):
                 iid = self.tree.insert(parent, 'end', text=index, open=True, values=(data,))
-                #self.tree.see(iid)
                 self.objectMap[iid] = data
+                lastId = iid
+        elif type(target) is dict:
+            for key in target:
+                iid = self.tree.insert(parent, 'end', text=key, open=True, values=(target[key],))
+                self.objectMap[iid] = target[key]
                 lastId = iid
         else:
             for name, data in inspect.getmembers(target):
@@ -45,7 +49,6 @@ class ObjectExplorer:
                 if inspect.ismethod(data):
                     continue
                 iid = self.tree.insert(parent, 'end', text=name, open=True, values=(data,))
-                #self.tree.see(iid)
                 self.objectMap[iid] = data
                 lastId = iid
         return lastId
