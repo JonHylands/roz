@@ -3,7 +3,7 @@
   (general
     (links 188)
     (no_connects 42)
-    (area 99.034524 98.6598 180.075001 144.777)
+    (area 99.924999 99.924999 180.075001 142.075001)
     (thickness 1.6)
     (drawings 24)
     (tracks 689)
@@ -37,7 +37,7 @@
   )
 
   (setup
-    (last_trace_width 1.5)
+    (last_trace_width 0.2)
     (user_trace_width 0.2)
     (user_trace_width 0.5)
     (user_trace_width 1)
@@ -2344,14 +2344,14 @@
       (net 4 GND))
   )
 
-  (module MicroPython-Parts-new:SIL_4_050 (layer F.Cu) (tedit 56888A32) (tstamp 56882278)
+  (module MicroPython-Parts-new:SIL_4_050 (layer F.Cu) (tedit 5688923F) (tstamp 56882278)
     (at 130.4 117.2 90)
     (path /5684E393)
-    (fp_text reference PowerSwitch (at 2 -3.2 90) (layer F.SilkS)
+    (fp_text reference SW2 (at 2 -3.2 90) (layer F.SilkS) hide
       (effects (font (size 1 1) (thickness 0.15)))
     )
-    (fp_text value PowerButton (at 1.9 -1.7 90) (layer F.SilkS) hide
-      (effects (font (size 0.889 0.889) (thickness 0.22225)))
+    (fp_text value PowerSwitch (at 1.95 -3.3 90) (layer F.SilkS)
+      (effects (font (size 1 1) (thickness 0.15)))
     )
     (fp_line (start 5.15 -2.4) (end 5.15 1.3) (layer F.SilkS) (width 0.15))
     (fp_line (start 5.15 1.3) (end -1.4 1.3) (layer F.SilkS) (width 0.15))
@@ -3056,7 +3056,7 @@
   (segment (start 148.05 116.05) (end 148.05 113.75) (width 0.2) (layer F.Cu) (net 27) (tstamp 56887A18))
   (segment (start 155.7 114) (end 155.7 113.2) (width 0.2) (layer F.Cu) (net 27))
   (segment (start 152.1 113.6) (end 152.8 114.3) (width 0.2) (layer F.Cu) (net 27) (tstamp 56887A41))
-  (segment (start 117.75 115.1) (end 114.1 115.1) (width 1.5) (layer F.Cu) (net 29) (status 400000))
+  (segment (start 117.75 115.1) (end 114.1 115.1) (width 1.5) (layer F.Cu) (net 29))
   (segment (start 127.6 128.914) (end 127.6 127.3) (width 1.5) (layer F.Cu) (net 29))
   (segment (start 114.1 125.1) (end 114.1 115.1) (width 1.5) (layer F.Cu) (net 29) (tstamp 568827CE))
   (segment (start 114.1 115.1) (end 114.1 104.3) (width 1.5) (layer F.Cu) (net 29) (tstamp 56889BF9))
