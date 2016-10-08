@@ -1,5 +1,5 @@
 
-import pyb
+# import pyb
 import math
 
 
@@ -155,6 +155,19 @@ class Motion:
 
 # ================================================
 #
+#       Class GaitFoot
+#
+
+class GaitFoot:
+
+    def __init__(self, footName):
+        self.name = footName
+        self.firstStep = 0
+        self.step = 0
+
+
+# ================================================
+#
 #       Class Gait
 #
 
@@ -163,36 +176,51 @@ class Gait:
     def __init__(self, name):
         self.name = name
         self.robot = None
-        self.appendage = None
-        self.firstStep = 0
-        self.stepCount = 0
-        self.pushStepCount = 0
-        self.liftHeight = 0
-        self.endRestPosition = []
-        self.gaitPosition = [0, 0, 0, 0]
-
-    def generateGaitPosition(self):
-        if self.robot.isMoving():
-            if self.firstStep == self.robot.gaitStep:
-                # leg up, middle position
-                self.gaitPosition[0] = 0
-                self.gaitPosition[1] = 0
-                self.gaitPosition[2] = -self.liftHeight
-                self.gaitPosition[3] = 0
-            elif ((self.firstStep + 1) % self.stepCount) == self.robot.gaitStep:
-                # leg down, full forward
-                self.gaitPosition[0] = self.robot.forwardSpeed / 2
-                self.gaitPosition[1] = self.robot.sideSpeed / 2
-                self.gaitPosition[2] = 0
-                self.gaitPosition[3] = self.robot.rotationSpeed / 2
-            else:
-                # leg down, moving backwards
-                self.gaitPosition[0] -= self.robot.forwardSpeed / self.pushStepCount
-                self.gaitPosition[1] -= self.robot.sideSpeed / self.pushStepCount
-                self.gaitPosition[2] = 0
-                self.gaitPosition[3] -= self.robot.rotationSpeed / self.pushStepCount
+        self.gaitFeet = {}
+        for foot in ["RF", "LF", "RR", "LR"]:
+            self.gaitFeet[foot] = GaitFoot(foot)
+        self.steps = GaitStepGenerator().generateStepPositions(150, 20, 20)
 
 
+class GaitStepGenerator:
+
+    def xfrange(self, start, stop, step):
+        while start < stop:
+            yield start
+            start += step
+
+
+    def generateStepPositions(self, totalLength, liftHeight, stepCount):
+        a = totalLength / 2
+        b = liftHeight
+
+        circumference = 0.0
+        for t in self.xfrange(0.0, math.pi / 2.0, 0.01):
+            circumference += math.sqrt((a * math.sin(t)) ** 2 + (b * math.cos(t)) ** 2 )
+
+        points = []
+        nextPoint = 0
+        halfStepCount = stepCount / 2
+        run = 0.0
+
+        for t in self.xfrange(0.0, math.pi / 2.0, 0.01):
+            if halfStepCount * run / circumference >= nextPoint:
+                x = -a * math.cos(t)
+                y = b * math.sin(t)
+                points.append((round(x, 2), round(y, 2)))
+                nextPoint += 1
+            run += math.sqrt((a * math.sin(t)) ** 2 + (b * math.cos(t)) ** 2)
+
+        reverse = list(reversed(points))
+        points.append((0.0, liftHeight))
+        for each in reverse:
+            points.append((-each[0], each[1]))
+        stepLength = totalLength / stepCount
+        x = points[-1][0]
+        for index in range(0, stepCount - 1):
+            x -= stepLength
+            points.append((x, 0))
+        return points
 
 
 # ================================================

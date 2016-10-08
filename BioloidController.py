@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-from stm_uart_bus import UART_Bus
-from bus import BusError
+from stm_uart_port import UART_Port
+from bus import Bus, BusError
 from packet import ErrorCode
 from Support import Logger
 import pyb
@@ -29,7 +29,11 @@ class BioloidController:
         self.playing = False
         self.servoCount = 12
         self.lastFrame = pyb.millis()
-        self.bus = UART_Bus(1, 1000000, show_packets=False)
+        self.port = UART_Port(1, 1000000)
+        self.bus = Bus(self.port, show=Bus.SHOW_PACKETS)
+        # Bus.SHOW_NONE
+        # Bus.SHOW_COMMANDS
+        # Bus.SHOW_PACKETS
         if useLogger:
             self.logger = Logger('sync_log.txt')
         else:

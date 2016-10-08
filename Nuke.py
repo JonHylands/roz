@@ -84,7 +84,7 @@ class IKEngine:
         # End points are the locations of the feet, relative to the coxa pivot, in mm, in the standing position
         self.endPoints = {}
         self.endPoints["RIGHT_FRONT"] = [50, 130, 90]
-        self.endPoints["RIGHT_REAR"] = [-50, 120, 90]
+        self.endPoints["RIGHT_REAR"] = [-50, 130, 90]
         self.endPoints["LEFT_FRONT"] = [50, -130, 90]
         self.endPoints["LEFT_REAR"] = [-50, -130, 90]
 
