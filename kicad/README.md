@@ -17,7 +17,7 @@ PCB
 
 Pins
 - GATE_PIN (A14) - Bring GATE_PIN high to keep power going to the MCU, bring GATE_PIN
-    low to turn the MCU on. Pressing the PowerSwitch acts as a bootstrap
+    low to turn the MCU off. Pressing the PowerSwitch acts as a bootstrap
     to turn power on, and it must remain pressed until the MCU brings
     GATE_PIN high
 - SWITCH_PIN (A13) - Allows the MCU to detect when SW2 has been pressed. This is
